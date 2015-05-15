@@ -72,7 +72,7 @@ type ErrorMessage struct {
 func main() {
 	log.Printf("Connecting to HBase")
 
-	hbaseclient, err := goh.NewTcpClient("hbase:9090", goh.TBinaryProtocol, false)
+	hbaseclient, err := goh.NewTcpClient("127.0.0.1:9090", goh.TBinaryProtocol, false)
 	if err != nil {
 		log.Fatalf("Error connecting to HBase: %s", err.Error())
 	}
@@ -159,18 +159,18 @@ func main() {
 
 			json.Unmarshal(bts, &order)
 
-			base_order := order.(OrderMessage)
+			base_order := raw_order.(map[string]interface{})
 
-			mutations := make([]*Hbase.Mutation, 9)
+			mutations := make([]*Hbase.Mutation, 0)
 
-			mutations = append(mutations, goh.NewMutation("d:timestamp", []byte(base_order.Time)))
-			mutations = append(mutations, goh.NewMutation("d:side", []byte(base_order.Side)))
+			mutations = append(mutations, goh.NewMutation("d:timestamp", []byte(base_order["time"].(string))))
+			mutations = append(mutations, goh.NewMutation("d:side", []byte(base_order["side"].(string))))
 
 			buf := new(bytes.Buffer)
-			binary.Write(buf, binary.LittleEndian, base_order.Sequence)
+			binary.Write(buf, binary.LittleEndian, base_order["sequence"].(float64))
 			mutations = append(mutations, goh.NewMutation("d:sequence", buf.Bytes()))
 
-			mutations = append(mutations, goh.NewMutation("d:price", []byte(base_order.Price)))
+			mutations = append(mutations, goh.NewMutation("d:price", []byte(base_order["price"].(string))))
 
 			switch ordr := order.(type) {
 			case OpenOrderMessage:
@@ -194,7 +194,7 @@ func main() {
 				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.NewSize)))
 			}
 
-			hbaseclient.MutateRow("coinbase_orders", []byte(base_order.OrderID), mutations, make(map[string]string))
+			hbaseclient.MutateRow("coinbase_orders", []byte(base_order["order_id"].(string)), mutations, nil)
 		}
 	}
 
