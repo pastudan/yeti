@@ -172,23 +172,24 @@ func main() {
 
 			mutations = append(mutations, goh.NewMutation("d:price", []byte(base_order["price"].(string))))
 
+			if coinbase_msg.CommandType != "change" {
+				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
+			}
+
+			// TODO: THIS IS BROKEN
 			switch ordr := order.(type) {
 			case OpenOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
 				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
 			case ReceivedOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
 				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.Size)))
 			case MatchOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
 				mutations = append(mutations, goh.NewMutation("d:taker_id", []byte(ordr.MakerOrderID)))
 				mutations = append(mutations, goh.NewMutation("d:maker_id", []byte(ordr.TakerOrderID)))
 
 				buf := new(bytes.Buffer)
 				binary.Write(buf, binary.LittleEndian, ordr.TradeID)
-				mutations = append(mutations, goh.NewMutation("d:maker_id", buf.Bytes()))
+				mutations = append(mutations, goh.NewMutation("d:trade_id", buf.Bytes()))
 			case DoneOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
 				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
 			case ChangeOrderMessage:
 				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.NewSize)))
