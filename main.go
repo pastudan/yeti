@@ -72,7 +72,7 @@ type ErrorMessage struct {
 func main() {
 	log.Printf("Connecting to HBase")
 
-	hbaseclient, err := goh.NewTcpClient("127.0.0.1:9090", goh.TBinaryProtocol, false)
+	hbaseclient, err := goh.NewTcpClient("hbase:9090", goh.TBinaryProtocol, false)
 	if err != nil {
 		log.Fatalf("Error connecting to HBase: %s", err.Error())
 	}
