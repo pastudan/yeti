@@ -134,7 +134,7 @@ func main() {
 			json.Unmarshal(bts, &coinbase_msg)
 
 			fmt.Printf("Received: %s.\n", coinbase_msg.CommandType)
-			statsdclient.Inc(coinbase_msg.CommandType, 1, 1)
+			go statsdclient.Inc(coinbase_msg.CommandType, 1, 1)
 
 			var order interface{}
 
@@ -152,6 +152,7 @@ func main() {
 				var err ErrorMessage
 				json.Unmarshal(bts, &err)
 				fmt.Printf("Coinbase error: %s", err.Message)
+				break
 			} else {
 				fmt.Printf("Unknown order type %s", coinbase_msg.CommandType)
 				break
@@ -183,9 +184,6 @@ func main() {
 			case ReceivedOrderMessage:
 				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.Size)))
 			case MatchOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:taker_id", []byte(ordr.MakerOrderID)))
-				mutations = append(mutations, goh.NewMutation("d:maker_id", []byte(ordr.TakerOrderID)))
-
 				buf := new(bytes.Buffer)
 				binary.Write(buf, binary.LittleEndian, ordr.TradeID)
 				mutations = append(mutations, goh.NewMutation("d:trade_id", buf.Bytes()))
@@ -195,7 +193,13 @@ func main() {
 				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.NewSize)))
 			}
 
-			hbaseclient.MutateRow("coinbase_orders", []byte(base_order["order_id"].(string)), mutations, nil)
+			if "match" != coinbase_msg.CommandType {
+				go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["order_id"].(string)), mutations, nil)
+			} else {
+				// Matches are two orders in one
+				go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["maker_order_id"].(string)), mutations, nil)
+				go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["taker_order_id"].(string)), mutations, nil)
+			}
 		}
 	}
 
