@@ -1,12 +1,14 @@
 package main
 
 import (
-	//	"bytes"
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/cactus/go-statsd-client/statsd"
 	"github.com/gorilla/websocket"
-	//"github.com/sdming/goh"
+	"github.com/sdming/goh"
+	"github.com/sdming/goh/Hbase"
 	"io"
 	"log"
 	"net/http"
@@ -70,18 +72,16 @@ type ErrorMessage struct {
 func main() {
 	log.Printf("Connecting to HBase")
 
-	/*
-		hbaseclient, err := goh.NewTcpClient("127.0.0.1:9090", goh.TBinaryProtocol, false)
-		if err != nil {
-			log.Fatalf("Error connecting to HBase: %s", err.Error())
-		}
+	hbaseclient, err := goh.NewTcpClient("127.0.0.1:9090", goh.TBinaryProtocol, false)
+	if err != nil {
+		log.Fatalf("Error connecting to HBase: %s", err.Error())
+	}
 
-		if err = hbaseclient.Open(); err != nil {
-			log.Fatalf("Error opening client to HBase: %s", err.Error())
-		}
+	if err = hbaseclient.Open(); err != nil {
+		log.Fatalf("Error opening client to HBase: %s", err.Error())
+	}
 
-		defer hbaseclient.Close()
-	*/
+	defer hbaseclient.Close()
 
 	log.Print("Connecting to the Coinbase Exchange real-time websocket feed...")
 
@@ -121,34 +121,80 @@ func main() {
 
 		decoder := json.NewDecoder(reader)
 		for {
-			var raw_order map[string]interface{}
+			var raw_order interface{}
 			decoder.Decode(&raw_order)
 
-			fmt.Printf("Received %s\n", raw_order)
-			/*
-				coinbase_msg := &CoinbaseMessage{}
+			if raw_order == nil {
+				break
+			}
 
-				var order interface{}
+			bts, _ := json.Marshal(raw_order)
 
-				if "open" == coinbase_msg.CommandType {
-					order = &OpenOrderMessage{}
-				} else if "received" == coinbase_msg.CommandType {
-					order = &ReceivedOrderMessage{}
-				} else if "match" == coinbase_msg.CommandType {
-					order = &MatchOrderMessage{}
-				} else if "change" == coinbase_msg.CommandType {
-					order = &ChangeOrderMessage{}
-				} else if "done" == coinbase_msg.CommandType {
-					order = &DoneOrderMessage{}
-				} else if "error" == coinbase_msg.CommandType {
-					order = &ErrorMessage{}
-				} else {
-					fmt.Printf("Unknown order type %s", coinbase_msg.CommandType)
-				}
+			var coinbase_msg CoinbaseMessage
+			json.Unmarshal(bts, &coinbase_msg)
 
-				fmt.Printf("Received: %s.\n", order)
-			*/
-			statsdclient.Inc("", 1, 1)
+			fmt.Printf("Received: %s.\n", coinbase_msg.CommandType)
+			statsdclient.Inc(coinbase_msg.CommandType, 1, 1)
+
+			var order interface{}
+
+			if "open" == coinbase_msg.CommandType {
+				order = &OpenOrderMessage{}
+			} else if "received" == coinbase_msg.CommandType {
+				order = &ReceivedOrderMessage{}
+			} else if "match" == coinbase_msg.CommandType {
+				order = &MatchOrderMessage{}
+			} else if "change" == coinbase_msg.CommandType {
+				order = &ChangeOrderMessage{}
+			} else if "done" == coinbase_msg.CommandType {
+				order = &DoneOrderMessage{}
+			} else if "error" == coinbase_msg.CommandType {
+				var err ErrorMessage
+				json.Unmarshal(bts, &err)
+				fmt.Printf("Coinbase error: %s", err.Message)
+			} else {
+				fmt.Printf("Unknown order type %s", coinbase_msg.CommandType)
+				break
+			}
+
+			json.Unmarshal(bts, &order)
+
+			base_order := order.(OrderMessage)
+
+			mutations := make([]*Hbase.Mutation, 9)
+
+			mutations = append(mutations, goh.NewMutation("d:timestamp", []byte(base_order.Time)))
+			mutations = append(mutations, goh.NewMutation("d:side", []byte(base_order.Side)))
+
+			buf := new(bytes.Buffer)
+			binary.Write(buf, binary.LittleEndian, base_order.Sequence)
+			mutations = append(mutations, goh.NewMutation("d:sequence", buf.Bytes()))
+
+			mutations = append(mutations, goh.NewMutation("d:price", []byte(base_order.Price)))
+
+			switch ordr := order.(type) {
+			case OpenOrderMessage:
+				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
+				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
+			case ReceivedOrderMessage:
+				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
+				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.Size)))
+			case MatchOrderMessage:
+				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
+				mutations = append(mutations, goh.NewMutation("d:taker_id", []byte(ordr.MakerOrderID)))
+				mutations = append(mutations, goh.NewMutation("d:maker_id", []byte(ordr.TakerOrderID)))
+
+				buf := new(bytes.Buffer)
+				binary.Write(buf, binary.LittleEndian, ordr.TradeID)
+				mutations = append(mutations, goh.NewMutation("d:maker_id", buf.Bytes()))
+			case DoneOrderMessage:
+				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
+				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
+			case ChangeOrderMessage:
+				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.NewSize)))
+			}
+
+			hbaseclient.MutateRow("coinbase_orders", []byte(base_order.OrderID), mutations, make(map[string]string))
 		}
 	}
 
