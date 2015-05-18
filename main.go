@@ -99,7 +99,7 @@ func main() {
 		log.Fatalf("Error upgrading coinbase exchange feed connection to WebSocket: %s", err.Error())
 	}
 
-	log.Print("Subscribing to BTC-USD")
+	log.Print("Subscribing to BTC/USD")
 
 	subscribe_msg := &SubscribeMessage{CoinbaseMessage: CoinbaseMessage{CommandType: "subscribe"}, ProductID: "BTC-USD"}
 
