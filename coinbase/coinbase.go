@@ -1,18 +1,4 @@
-package main
-
-import (
-	"bytes"
-	"encoding/binary"
-	"encoding/json"
-	"fmt"
-	"github.com/cactus/go-statsd-client/statsd"
-	"github.com/gorilla/websocket"
-	"github.com/sdming/goh"
-	"github.com/sdming/goh/Hbase"
-	"io"
-	"log"
-	"net/http"
-)
+package coinbase
 
 type CoinbaseMessage struct {
 	CommandType string `json:"type"`
@@ -69,23 +55,9 @@ type ErrorMessage struct {
 	Message string `json:"message"`
 }
 
-func main() {
-	log.Printf("Connecting to HBase")
-
-	hbaseclient, err := goh.NewTcpClient("hbase:9090", goh.TBinaryProtocol, false)
-	if err != nil {
-		log.Fatalf("Error connecting to HBase: %s", err.Error())
-	}
-
-	if err = hbaseclient.Open(); err != nil {
-		log.Fatalf("Error opening client to HBase: %s", err.Error())
-	}
-
-	defer hbaseclient.Close()
+/*
 
 	log.Print("Connecting to the Coinbase Exchange real-time websocket feed...")
-
-	statsdclient, err := statsd.NewClient("statsd.jacobgreenleaf.com:8125", "coinbase.")
 
 	coinbase_url_raw := "wss://ws-feed.exchange.coinbase.com"
 	coinbase_headers := http.Header{}
@@ -107,7 +79,9 @@ func main() {
 		log.Fatalf("Error writing subscribe message: %s", err.Error())
 	}
 
-	log.Printf("Subscribed. Reading...")
+	log.Printf("Subscribed. Buffering...")
+
+	order_buffer := list.New()
 
 	for {
 		var reader io.Reader
@@ -133,7 +107,7 @@ func main() {
 			var coinbase_msg CoinbaseMessage
 			json.Unmarshal(bts, &coinbase_msg)
 
-			fmt.Printf("Received: %s.\n", coinbase_msg.CommandType)
+			//fmt.Printf("Received: %s.\n", coinbase_msg.CommandType)
 			go statsdclient.Inc(coinbase_msg.CommandType, 1, 1)
 
 			var order interface{}
@@ -151,57 +125,60 @@ func main() {
 			} else if "error" == coinbase_msg.CommandType {
 				var err ErrorMessage
 				json.Unmarshal(bts, &err)
-				fmt.Printf("Coinbase error: %s", err.Message)
+				fmt.Printf("Coinbase error: %s\n", err.Message)
 				break
 			} else {
-				fmt.Printf("Unknown order type %s", coinbase_msg.CommandType)
+				fmt.Printf("Unknown order type %s\n", coinbase_msg.CommandType)
 				break
 			}
 
 			json.Unmarshal(bts, &order)
 
-			base_order := raw_order.(map[string]interface{})
+			order_buffer.PushFront(order)
 
-			mutations := make([]*Hbase.Mutation, 0)
+			fmt.Printf("\r%d pending orders", order_buffer.Len())
 
-			mutations = append(mutations, goh.NewMutation("d:timestamp", []byte(base_order["time"].(string))))
-			mutations = append(mutations, goh.NewMutation("d:side", []byte(base_order["side"].(string))))
+			//			base_order := raw_order.(map[string]interface{})
 
-			buf := new(bytes.Buffer)
-			binary.Write(buf, binary.LittleEndian, base_order["sequence"].(float64))
-			mutations = append(mutations, goh.NewMutation("d:sequence", buf.Bytes()))
+			/*
+				mutations := make([]*Hbase.Mutation, 0)
 
-			mutations = append(mutations, goh.NewMutation("d:price", []byte(base_order["price"].(string))))
+				mutations = append(mutations, goh.NewMutation("d:timestamp", []byte(base_order["time"].(string))))
+				mutations = append(mutations, goh.NewMutation("d:side", []byte(base_order["side"].(string))))
 
-			if coinbase_msg.CommandType != "change" {
-				mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
-			}
-
-			// TODO: THIS IS BROKEN
-			switch ordr := order.(type) {
-			case OpenOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
-			case ReceivedOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.Size)))
-			case MatchOrderMessage:
 				buf := new(bytes.Buffer)
-				binary.Write(buf, binary.LittleEndian, ordr.TradeID)
-				mutations = append(mutations, goh.NewMutation("d:trade_id", buf.Bytes()))
-			case DoneOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
-			case ChangeOrderMessage:
-				mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.NewSize)))
-			}
+				binary.Write(buf, binary.LittleEndian, base_order["sequence"].(float64))
+				mutations = append(mutations, goh.NewMutation("d:sequence", buf.Bytes()))
 
-			if "match" != coinbase_msg.CommandType {
-				go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["order_id"].(string)), mutations, nil)
-			} else {
-				// Matches are two orders in one
-				go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["maker_order_id"].(string)), mutations, nil)
-				go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["taker_order_id"].(string)), mutations, nil)
-			}
+				mutations = append(mutations, goh.NewMutation("d:price", []byte(base_order["price"].(string))))
+
+				if coinbase_msg.CommandType != "change" {
+					mutations = append(mutations, goh.NewMutation("d:status", []byte(coinbase_msg.CommandType)))
+				}
+
+				// TODO: THIS IS BROKEN
+				switch ordr := order.(type) {
+				case OpenOrderMessage:
+					mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
+				case ReceivedOrderMessage:
+					mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.Size)))
+				case MatchOrderMessage:
+					buf := new(bytes.Buffer)
+					binary.Write(buf, binary.LittleEndian, ordr.TradeID)
+					mutations = append(mutations, goh.NewMutation("d:trade_id", buf.Bytes()))
+				case DoneOrderMessage:
+					mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.RemainingSize)))
+				case ChangeOrderMessage:
+					mutations = append(mutations, goh.NewMutation("d:size", []byte(ordr.NewSize)))
+				}
+
+				if "match" != coinbase_msg.CommandType {
+					go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["order_id"].(string)), mutations, nil)
+				} else {
+					// Matches are two orders in one
+					go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["maker_order_id"].(string)), mutations, nil)
+					go hbaseclient.MutateRow("coinbase_orders", []byte(base_order["taker_order_id"].(string)), mutations, nil)
+				}
 		}
 	}
-
-	log.Printf("Exiting...")
-}
+*/
