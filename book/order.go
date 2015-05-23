@@ -7,38 +7,28 @@ var (
 	SIDE_SELL = "sell"
 )
 
+const (
+	STATE_PENDING = "pending"
+	STATE_OPEN    = "open"
+	STATE_FILLED  = "filled"
+	STATE_VOID    = "void"
+)
+
+const (
+	MATCH_TYPE_TAKER = "taker"
+	MATCH_TYPE_MAKER = "maker"
+)
+
+type OrderID string
+
 type Order struct {
-	ID    string
+	ID    OrderID
 	Price int64
-	Size  int64
 	Side  string
 }
 
-type MakeOrder struct {
+type StatefulOrder struct {
 	Order
-	Time time.Time
-}
-
-type OpenOrder struct {
-	OrderID string
-	Time    time.Time
-}
-
-type VoidOrder struct {
-	OrderID string
-	Time    time.Time
-}
-
-type MutateOrderSize struct {
-	OrderID string
-	OldSize int64
-	NewSize int64
-	Time    time.Time
-}
-
-type MatchOrder struct {
-	MakerOrderID string
-	TakerOrderID string
-	TradeID      int64
-	Time         time.Time
+	State  string
+	Makers []OrderID
 }
