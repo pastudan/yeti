@@ -34,12 +34,12 @@ func (o *Order) String() string {
 
 type StatefulOrder struct {
 	Order
-	Size         int64
-	State        string
-	LastMutation time.Time
-	Makers       []OrderID
+	Size               int64
+	State              string
+	Makers             []OrderID
+	LatestMutationTime time.Time
 }
 
 func (o *StatefulOrder) String() string {
-	return fmt.Sprintf("<%s StatefulOrder at price %d for %d units; last changed at %s; id=%s>", o.Side, o.Price, o.Size, o.LastMutation, o.ID)
+	return fmt.Sprintf("<%s StatefulOrder at price %d for %d units; last changed at %s; id=%s>", o.Side, o.Price, o.Size, o.LatestMutationTime, o.ID)
 }

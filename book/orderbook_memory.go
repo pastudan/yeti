@@ -15,9 +15,10 @@ func (h *OrderHistory) String() string {
 }
 
 type InMemoryOrderBook struct {
-	Book        map[OrderID]*OrderHistory
-	PriceLevels map[int64][]*OrderHistory
-	History     []*OrderHistory
+	Book               map[OrderID]*OrderHistory
+	PriceLevels        map[int64][]*OrderHistory
+	History            []*OrderHistory
+	LatestMutationTime time.Time
 }
 
 func (m *InMemoryOrderBook) String() string {
@@ -28,7 +29,7 @@ func NewInMemoryOrderBook() (b *InMemoryOrderBook) {
 	bk := make(map[OrderID]*OrderHistory)
 	prices := make(map[int64][]*OrderHistory)
 	history := make([]*OrderHistory, 0)
-	return &InMemoryOrderBook{bk, prices, history}
+	return &InMemoryOrderBook{bk, prices, history, *new(time.Time)}
 }
 
 func (book *InMemoryOrderBook) applyMutations(order StatefulOrder, muts []OrderMutation) *StatefulOrder {
@@ -48,7 +49,7 @@ func (book *InMemoryOrderBook) applyMutations(order StatefulOrder, muts []OrderM
 		}
 	}
 
-	order.LastMutation = latest_time
+	order.LatestMutationTime = latest_time
 
 	return &order
 }
@@ -101,7 +102,7 @@ func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64, t time.Time) 
 	}
 
 	history := &OrderHistory{
-		Mutations:     []OrderMutation{&OrderStateChange{State: STATE_PENDING, Time: t}},
+		Mutations:     []OrderMutation{&OrderStateMutation{State: STATE_PENDING, Time: t}},
 		FirstVersion:  sorder,
 		LatestVersion: sorder,
 	}
@@ -115,6 +116,10 @@ func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64, t time.Time) 
 
 	book.PriceLevels[order.Price] = append(book.PriceLevels[order.Price], history)
 	book.History = append(book.History, history)
+
+	if book.LatestMutationTime.Before(t) {
+		book.LatestMutationTime = t
+	}
 
 	return nil
 }
@@ -142,10 +147,19 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) err
 	history.LatestVersion = &order
 	book.Book[id] = history
 
+	if book.LatestMutationTime.Before(order.LatestMutationTime) {
+		book.LatestMutationTime = order.LatestMutationTime
+	}
+
 	return nil
 }
 
 func (book *InMemoryOrderBook) GetPriceLevel(level int64) []*StatefulOrder {
+	return book.GetPriceLevelVersion(level, book.LatestMutationTime)
+}
+
+// Retrieve all of the orders at a given price level
+func (book *InMemoryOrderBook) GetPriceLevelVersion(level int64, t time.Time) []*StatefulOrder {
 	histories, ok := book.PriceLevels[level]
 
 	if !ok {
@@ -156,10 +170,40 @@ func (book *InMemoryOrderBook) GetPriceLevel(level int64) []*StatefulOrder {
 
 	// Filter only open orders
 	for _, history := range histories {
-		if history.LatestVersion.State == STATE_OPEN || history.LatestVersion.State == STATE_PENDING {
-			prices = append(prices, history.LatestVersion)
+		var order *StatefulOrder = nil
+
+		// We might be able to just use the latest version and avoid (possibly) expensively
+		// replaying the mutations if all the updates happened before t (latest)
+		if history.LatestVersion.LatestMutationTime.After(t) {
+			// Drats, we have to apply only the mutations that occurred before or at t
+			order, _ = book.GetOrderVersion(history.LatestVersion.ID, t)
+		} else {
+			order = history.LatestVersion
+		}
+
+		if order.State == STATE_OPEN || order.State == STATE_PENDING {
+			prices = append(prices, order)
 		}
 	}
 
 	return prices
+}
+
+func (book *InMemoryOrderBook) GetPriceLevels() []int64 {
+	keys := make([]int64, 0, len(book.PriceLevels))
+
+	for price_level := range book.PriceLevels {
+		keys = append(keys, price_level)
+	}
+
+	return keys
+}
+
+// Vacuuming removes all of the voided or filled orders
+func (book *InMemoryOrderBook) Vacuum() {
+	for order_id, history := range book.Book {
+		if history.LatestVersion.State == STATE_FILLED || history.LatestVersion.State == STATE_VOID {
+			delete(book.Book, order_id)
+		}
+	}
 }

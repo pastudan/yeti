@@ -65,7 +65,7 @@ func TestPriceLevels(t *testing.T) {
 		t.Fatal("Expected nil slice or empty slice")
 	}
 
-	book.MutateOrder("aaa", []OrderMutation{&OrderStateChange{
+	book.MutateOrder("aaa", []OrderMutation{&OrderStateMutation{
 		Time:  time.Unix(1, 0),
 		State: STATE_VOID,
 	}})
@@ -84,7 +84,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
 	book.PlaceOrder(order, 10, time.Unix(0, 0))
 
-	mut := &OrderStateChange{
+	mut := &OrderStateMutation{
 		State: STATE_OPEN,
 		Time:  time.Unix(0, 0),
 	}
@@ -97,7 +97,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 		t.Fatalf("Mutation failed to apply. Expected state %s to be %s", sorder.State, STATE_OPEN)
 	}
 
-	mut = &OrderStateChange{
+	mut = &OrderStateMutation{
 		State: STATE_OPEN,
 		Time:  time.Unix(0, 0),
 	}
@@ -106,7 +106,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 		t.Fatal("Expected state mutation on non-existent order to be invalid")
 	}
 
-	sizemut := &OrderSizeChange{
+	sizemut := &OrderSizeMutation{
 		NewSize: 11,
 		Time:    time.Unix(0, 0),
 	}
@@ -122,11 +122,11 @@ func TestMutatingSingleOrder(t *testing.T) {
 		t.Fatalf("Expected mutated order size %d to be 11", sorder.Size)
 	}
 
-	sizemut_new := &OrderSizeChange{
+	sizemut_new := &OrderSizeMutation{
 		NewSize: 20,
 		Time:    time.Unix(1, 0),
 	}
-	sizemut_old := &OrderSizeChange{
+	sizemut_old := &OrderSizeMutation{
 		NewSize: 15,
 		Time:    time.Unix(0, 0),
 	}
@@ -205,7 +205,7 @@ func TestVoidingOrder(t *testing.T) {
 	order := Order{ID: "foobar", Price: 100, Side: SIDE_SELL}
 	book.PlaceOrder(order, 10, time.Unix(0, 0))
 
-	mut := &OrderStateChange{
+	mut := &OrderStateMutation{
 		State: STATE_VOID,
 		Time:  time.Unix(1, 0),
 	}
@@ -225,13 +225,13 @@ func TestOrderVersions(t *testing.T) {
 	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
 	book.PlaceOrder(order, 10, time.Unix(0, 0))
 
-	mut := &OrderSizeChange{
+	mut := &OrderSizeMutation{
 		NewSize: 9,
 		Time:    time.Unix(1, 0),
 	}
 	err := book.MutateOrder("foobar", []OrderMutation{mut})
 
-	mut = &OrderSizeChange{
+	mut = &OrderSizeMutation{
 		NewSize: 5,
 		Time:    time.Unix(2, 0),
 	}
@@ -277,7 +277,7 @@ func TestMutatingTwoOrders(t *testing.T) {
 	book.PlaceOrder(orderOne, 10, time.Unix(0, 0))
 	book.PlaceOrder(orderTwo, 10, time.Unix(0, 0))
 
-	mut := &OrderStateChange{
+	mut := &OrderStateMutation{
 		State: STATE_OPEN,
 		Time:  time.Unix(0, 0),
 	}
@@ -292,5 +292,41 @@ func TestMutatingTwoOrders(t *testing.T) {
 	sorder, _ = book.GetOrder("bazbar")
 	if sorder.State != STATE_PENDING {
 		t.Fatalf("Unexpected order modification. Expected state %s to be pending", sorder.State)
+	}
+}
+
+func TestVacuuming(t *testing.T) {
+	book := NewInMemoryOrderBook()
+
+	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+	order = Order{ID: "bazbar", Price: 100, Side: SIDE_BUY}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+	mut := &OrderStateMutation{
+		State: STATE_VOID,
+		Time:  time.Unix(1, 0),
+	}
+	book.MutateOrder("foobar", []OrderMutation{mut})
+	book.Vacuum()
+
+	sorder, err := book.GetOrder("foobar")
+	if sorder != nil || err == nil {
+		t.Fatal("Expected voided order to be removed from the book after vacuuming.")
+	}
+
+	sorder, err = book.GetOrder("bazbar")
+	if sorder == nil || err != nil {
+		t.Fatal("Expected pending order not to be removed by vacuum.")
+	}
+}
+
+func TestLatestMutationTime(t *testing.T) {
+	book := NewInMemoryOrderBook()
+
+	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+
+	if !book.LatestMutationTime.Equal(time.Unix(0, 0)) {
+		t.Fatalf("Expected latest mutation time to be %s, instead %s", time.Unix(0, 0), book.LatestMutationTime)
 	}
 }

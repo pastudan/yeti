@@ -14,6 +14,7 @@ var (
 type OrderBook interface {
 	PlaceOrder(Order, size int64, t time.Time) error
 	MutateOrder(OrderID, []OrderMutation) error
+	Vacuum()
 
 	GetOrder(OrderID) (StatefulOrder, error)
 	GetOrderVersion(OrderID, time.Time) (StatefulOrder, error)
@@ -31,41 +32,41 @@ func (a OrderMutationByTime) Len() int           { return len(a) }
 func (a OrderMutationByTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a OrderMutationByTime) Less(i, j int) bool { return a[i].GetTime().Before(a[j].GetTime()) }
 
-type OrderStateChange struct {
+type OrderStateMutation struct {
 	State string
 	Time  time.Time
 }
 
-func (m *OrderStateChange) String() string {
-	return fmt.Sprintf("<OrderStateChange to '%s' at %s>", m.State, m.Time.String())
+func (m *OrderStateMutation) String() string {
+	return fmt.Sprintf("<OrderStateMutation to '%s' at %s>", m.State, m.Time.String())
 }
 
-func (m *OrderStateChange) Apply(s *StatefulOrder) (*StatefulOrder, error) {
+func (m *OrderStateMutation) Apply(s *StatefulOrder) (*StatefulOrder, error) {
 	new_order := *s // copy
 	new_order.State = m.State
 	return &new_order, nil
 }
 
-func (m *OrderStateChange) GetTime() time.Time {
+func (m *OrderStateMutation) GetTime() time.Time {
 	return m.Time
 }
 
-type OrderSizeChange struct {
+type OrderSizeMutation struct {
 	NewSize int64
 	Time    time.Time
 }
 
-func (m *OrderSizeChange) String() string {
-	return fmt.Sprintf("<OrderSizeChange to %d units at %s>", m.NewSize, m.Time.String())
+func (m *OrderSizeMutation) String() string {
+	return fmt.Sprintf("<OrderSizeMutation to %d units at %s>", m.NewSize, m.Time.String())
 }
 
-func (m *OrderSizeChange) Apply(s *StatefulOrder) (*StatefulOrder, error) {
+func (m *OrderSizeMutation) Apply(s *StatefulOrder) (*StatefulOrder, error) {
 	new_order := *s // copy
 	new_order.Size = m.NewSize
 	return &new_order, nil
 }
 
-func (m *OrderSizeChange) GetTime() time.Time {
+func (m *OrderSizeMutation) GetTime() time.Time {
 	return m.Time
 }
 
