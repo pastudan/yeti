@@ -28,14 +28,14 @@ type OrderStateChange struct {
 	Time  time.Time
 }
 
-func (m *OrderStateChange) GetTime() time.Time {
-	return m.Time
-}
-
 func (m *OrderStateChange) Apply(s *StatefulOrder) *StatefulOrder {
 	new_order := *s // copy
 	new_order.State = m.State
 	return &new_order
+}
+
+func (m *OrderStateChange) GetTime() time.Time {
+	return m.Time
 }
 
 type OrderSizeChange struct {
