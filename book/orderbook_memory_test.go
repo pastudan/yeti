@@ -54,14 +54,6 @@ func TestMutatingSingleOrder(t *testing.T) {
 		t.Fatal("Expected state mutation on non-existent order to be invalid")
 	}
 
-	mut = &OrderStateChange{
-		State: "kjfdslakfdjsalfkjdslkfdsa",
-	}
-	errs = book.MutateOrder("foobar", []OrderMutation{mut})
-	if err == nil {
-		t.Fatal("Expected state mutation to an invalid order state to be invalid")
-	}
-
 	sizemut := &OrderSizeChange{
 		NewSize: 11,
 	}

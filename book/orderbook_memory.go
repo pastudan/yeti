@@ -1,6 +1,6 @@
 package book
 
-//import "errors"
+//import "fmt"
 //import "time"
 
 type OrderHistory struct {
@@ -42,7 +42,7 @@ func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64) (err error) {
 	}
 
 	history := OrderHistory{
-		Mutations:     make([]OrderMutation, 2),
+		Mutations:     make([]OrderMutation, 0),
 		FirstVersion:  sorder,
 		LatestVersion: sorder,
 	}
@@ -80,6 +80,7 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) (er
 
 	order.LastMutation = latest_time
 	history.LatestVersion = &order
+	book.Book[id] = history
 
 	return nil
 }
