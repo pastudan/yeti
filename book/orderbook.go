@@ -17,6 +17,7 @@ type OrderBook interface {
 
 	GetOrder(OrderID) (StatefulOrder, error)
 	GetOrderVersion(OrderID, time.Time) (StatefulOrder, error)
+	GetPriceLevel(int64) []*StatefulOrder
 }
 
 type OrderMutation interface {

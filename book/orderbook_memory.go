@@ -15,7 +15,9 @@ func (h *OrderHistory) String() string {
 }
 
 type InMemoryOrderBook struct {
-	Book map[OrderID]OrderHistory
+	Book        map[OrderID]*OrderHistory
+	PriceLevels map[int64][]*OrderHistory
+	History     []*OrderHistory
 }
 
 func (m *InMemoryOrderBook) String() string {
@@ -23,8 +25,10 @@ func (m *InMemoryOrderBook) String() string {
 }
 
 func NewInMemoryOrderBook() (b *InMemoryOrderBook) {
-	bk := make(map[OrderID]OrderHistory)
-	return &InMemoryOrderBook{Book: bk}
+	bk := make(map[OrderID]*OrderHistory)
+	prices := make(map[int64][]*OrderHistory)
+	history := make([]*OrderHistory, 0)
+	return &InMemoryOrderBook{bk, prices, history}
 }
 
 func (book *InMemoryOrderBook) applyMutations(order StatefulOrder, muts []OrderMutation) *StatefulOrder {
@@ -96,13 +100,21 @@ func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64, t time.Time) 
 		Makers: nil,
 	}
 
-	history := OrderHistory{
+	history := &OrderHistory{
 		Mutations:     []OrderMutation{&OrderStateChange{State: STATE_PENDING, Time: t}},
 		FirstVersion:  sorder,
 		LatestVersion: sorder,
 	}
 
 	book.Book[order.ID] = history
+
+	_, ok = book.PriceLevels[order.Price]
+	if !ok {
+		book.PriceLevels[order.Price] = make([]*OrderHistory, 0)
+	}
+
+	book.PriceLevels[order.Price] = append(book.PriceLevels[order.Price], history)
+	book.History = append(book.History, history)
 
 	return nil
 }
@@ -131,4 +143,23 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) err
 	book.Book[id] = history
 
 	return nil
+}
+
+func (book *InMemoryOrderBook) GetPriceLevel(level int64) []*StatefulOrder {
+	histories, ok := book.PriceLevels[level]
+
+	if !ok {
+		return nil
+	}
+
+	prices := make([]*StatefulOrder, 0, len(histories))
+
+	// Filter only open orders
+	for _, history := range histories {
+		if history.LatestVersion.State == STATE_OPEN || history.LatestVersion.State == STATE_PENDING {
+			prices = append(prices, history.LatestVersion)
+		}
+	}
+
+	return prices
 }

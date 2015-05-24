@@ -29,6 +29,56 @@ func TestPlacingOrders(t *testing.T) {
 	}
 }
 
+func TestPriceLevels(t *testing.T) {
+	book := NewInMemoryOrderBook()
+
+	order := Order{ID: "aaa", Price: 100, Side: SIDE_BUY}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+
+	order = Order{ID: "bbb", Price: 200, Side: SIDE_BUY}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+
+	order = Order{ID: "ccc", Price: 100, Side: SIDE_SELL}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+
+	order = Order{ID: "ddd", Price: 100, Side: SIDE_BUY}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+
+	prices := book.GetPriceLevel(100)
+	if prices == nil {
+		t.Fatal("Unexpected nil slice")
+	}
+	if len(prices) != 3 {
+		t.Fatalf("Expected number of orders at price level 100 to be 3, instead %d", len(prices))
+	}
+
+	prices = book.GetPriceLevel(200)
+	if prices == nil {
+		t.Fatal("Unexpected nil slice")
+	}
+	if len(prices) != 1 {
+		t.Fatalf("Expected number of orders at price level 200 to be 1, instead %d", len(prices))
+	}
+
+	prices = book.GetPriceLevel(10000000)
+	if prices != nil && len(prices) != 0 {
+		t.Fatal("Expected nil slice or empty slice")
+	}
+
+	book.MutateOrder("aaa", []OrderMutation{&OrderStateChange{
+		Time:  time.Unix(1, 0),
+		State: STATE_VOID,
+	}})
+
+	prices = book.GetPriceLevel(100)
+	if prices == nil {
+		t.Fatal("Unexpected nil slice")
+	}
+	if len(prices) != 2 {
+		t.Fatalf("Expected number of orders at price level 100 to be two after removing one, instead %d", len(prices))
+	}
+}
+
 func TestMutatingSingleOrder(t *testing.T) {
 	book := NewInMemoryOrderBook()
 	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
