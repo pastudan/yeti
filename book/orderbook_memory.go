@@ -1,32 +1,95 @@
 package book
 
-import "container/list"
-import "errors"
-import "time"
+//import "errors"
+//import "time"
 
 type OrderHistory struct {
-	Mutations     *list.List
+	Mutations     []OrderMutation
 	FirstVersion  *StatefulOrder
 	LatestVersion *StatefulOrder
 }
 
 type InMemoryOrderBook struct {
-	Book      map[string]*OrderHistory
-	LastTrade *Order // Maker side
+	Book map[OrderID]OrderHistory
 }
 
 func NewInMemoryOrderBook() (b *InMemoryOrderBook) {
-	bk := make(map[string]*OrderHistory)
-	return &InMemoryOrderBook{Book: bk, LastTrade: nil}
+	bk := make(map[OrderID]OrderHistory)
+	return &InMemoryOrderBook{Book: bk}
+}
+
+func (book *InMemoryOrderBook) GetOrder(id OrderID) (sorder *StatefulOrder, err error) {
+	history, ok := book.Book[id]
+	if !ok {
+		return nil, errOrderDoesNotExist
+	} else {
+		return history.LatestVersion, nil
+	}
+}
+
+func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64) (err error) {
+	_, ok := book.Book[order.ID]
+
+	if ok {
+		return errOrderAlreadyExists
+	}
+
+	sorder := &StatefulOrder{
+		Order:  order,
+		State:  STATE_PENDING,
+		Size:   size,
+		Makers: nil,
+	}
+
+	history := OrderHistory{
+		Mutations:     make([]OrderMutation, 2),
+		FirstVersion:  sorder,
+		LatestVersion: sorder,
+	}
+
+	book.Book[order.ID] = history
+
+	return nil
+}
+
+func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) (err error) {
+	history, ok := book.Book[id]
+
+	if !ok {
+		return errOrderDoesNotExist
+	}
+
+	if len(muts) == 0 {
+		return nil
+	}
+
+	history.Mutations = append(history.Mutations, muts...)
+
+	order := *history.FirstVersion
+	// To be precise, we might want to copy the Makers which is a []OrderID
+	// but it probably doesn't matter much
+
+	latest_time := muts[0].GetTime()
+	// Re-apply all the mutations
+	for _, mutation := range history.Mutations {
+		order = *mutation.Apply(&order)
+		if latest_time.Before(mutation.GetTime()) {
+			latest_time = mutation.GetTime()
+		}
+	}
+
+	order.LastMutation = latest_time
+	history.LatestVersion = &order
+
+	return nil
 }
 
 /*
 type OrderBook interface {
 	PlaceOrder(Order, size int64) error
-	MutateOrders([]OrderMutation) error
+	MutateOrder(OrderID, []OrderMutation, time.Time) error
 	VoidOrder(OrderID) error
 
-	GetLastTrade() (taker Order, maker []Order, err error)
 	GetOrder(OrderID) (StatefulOrder, error)
 	GetOrderVersion(OrderID, time.Time) (StatefulOrder, error)
 }

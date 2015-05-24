@@ -1,6 +1,5 @@
 package book
 
-import "container/list"
 import "errors"
 import "time"
 
@@ -12,32 +11,67 @@ var (
 
 type OrderBook interface {
 	PlaceOrder(Order, size int64) error
-	MutateOrders([]OrderMutation) error
+	MutateOrder(OrderID, []OrderMutation, time.Time) error
 	VoidOrder(OrderID) error
 
-	GetLastTrade() (taker Order, maker []Order, err error)
 	GetOrder(OrderID) (StatefulOrder, error)
 	GetOrderVersion(OrderID, time.Time) (StatefulOrder, error)
 }
 
-type OrderMutation struct {
-	ID   OrderID
-	Time time.Time
+type OrderMutation interface {
+	Apply(*StatefulOrder) *StatefulOrder
+	GetTime() time.Time
 }
 
 type OrderStateChange struct {
-	OrderMutation
 	State string
+	Time  time.Time
+}
+
+func (m *OrderStateChange) GetTime() time.Time {
+	return m.Time
+}
+
+func (m *OrderStateChange) Apply(s *StatefulOrder) *StatefulOrder {
+	new_order := *s // copy
+	new_order.State = m.State
+	return &new_order
 }
 
 type OrderSizeChange struct {
-	OrderMutation
-	OldSize int64
 	NewSize int64
+	Time    time.Time
+}
+
+func (m *OrderSizeChange) Apply(s *StatefulOrder) *StatefulOrder {
+	new_order := *s // copy
+	new_order.Size = m.NewSize
+	return &new_order
+}
+
+func (m *OrderSizeChange) GetTime() time.Time {
+	return m.Time
 }
 
 type OrderMatch struct {
-	OrderMutation
-	TradeID string
-	OtherID OrderID
+	TradeID  string
+	Size     int64
+	WasMaker bool
+	MakerID  OrderID
+	Time     time.Time
+}
+
+func (m *OrderMatch) Apply(s *StatefulOrder) *StatefulOrder {
+	new_order := *s // copy
+	new_order.Size -= m.Size
+
+	if !m.WasMaker {
+		new_order.Makers = append(new_order.Makers, m.MakerID)
+	}
+
+	return &new_order
+}
+
+func (m *OrderMatch) GetTime() time.Time {
+	return m.Time
 }

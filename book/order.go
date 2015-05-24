@@ -29,6 +29,8 @@ type Order struct {
 
 type StatefulOrder struct {
 	Order
-	State  string
-	Makers []OrderID
+	Size         int64
+	State        string
+	LastMutation time.Time
+	Makers       []OrderID
 }
