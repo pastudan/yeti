@@ -36,6 +36,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 
 	mut := &OrderStateChange{
 		State: STATE_OPEN,
+		Time:  time.Unix(0, 0),
 	}
 	errs := book.MutateOrder("foobar", []OrderMutation{mut})
 	if errs != nil {
@@ -48,6 +49,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 
 	mut = &OrderStateChange{
 		State: STATE_OPEN,
+		Time:  time.Unix(0, 0),
 	}
 	errs = book.MutateOrder("bazbar", []OrderMutation{mut})
 	if errs == nil {
@@ -56,6 +58,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 
 	sizemut := &OrderSizeChange{
 		NewSize: 11,
+		Time:    time.Unix(0, 0),
 	}
 	errs = book.MutateOrder("foobar", []OrderMutation{sizemut})
 	if errs != nil {
@@ -153,23 +156,17 @@ func TestVoidingOrder(t *testing.T) {
 	book.PlaceOrder(order, 10, time.Unix(0, 0))
 
 	mut := &OrderStateChange{
-		State: STATE_OPEN,
+		State: STATE_VOID,
+		Time:  time.Unix(1, 0),
 	}
-	errs := book.MutateOrder("foobar", []OrderMutation{mut})
-	if errs != nil {
-		t.Fatalf("Unexpected error mutating order book: %s", errs)
-	}
-	sorder, _ := book.GetOrder("foobar")
-	if sorder.State != STATE_OPEN {
-		t.Fatalf("Mutation failed to apply. Expected state %s to be %s", sorder.State, STATE_OPEN)
-	}
+	book.MutateOrder("foobar", []OrderMutation{mut})
 
-	mut = &OrderStateChange{
-		State: STATE_OPEN,
+	sorder, err := book.GetOrder("foobar")
+	if err != nil {
+		t.Fatalf("Unexpected error when getting voided order: %s", err.Error())
 	}
-	errs = book.MutateOrder("bazbar", []OrderMutation{mut})
-	if errs == nil {
-		t.Fatal("Expected state mutation on non-existent order to be invalid")
+	if sorder.State != STATE_VOID {
+		t.Fatalf("Unexpected state %s, expected voided", sorder.State)
 	}
 }
 
@@ -197,6 +194,30 @@ func TestOrderVersions(t *testing.T) {
 	if sorderAtZero.Size != 10 {
 		t.Fatalf("Expected size at time zero to be 10, instead %d", sorderAtZero.Size)
 	}
+
+	sorderAtOne, err := book.GetOrderVersion("foobar", time.Unix(1, 0))
+	if err != nil {
+		t.Fatalf("Failed to get order at time one, error: %s", err.Error())
+	}
+	if sorderAtOne.Size != 9 {
+		t.Fatalf("Expected size at time one to be 9, instead %d", sorderAtOne.Size)
+	}
+
+	sorderAtTwo, err := book.GetOrderVersion("foobar", time.Unix(2, 0))
+	if err != nil {
+		t.Fatalf("Failed to get order at time one, error: %s", err.Error())
+	}
+	if sorderAtTwo.Size != 5 {
+		t.Fatalf("Expected size at time one to be 5, instead %d", sorderAtTwo.Size)
+	}
+
+	sorderAtMinusOne, err := book.GetOrderVersion("foobar", time.Unix(-1, 0))
+	if err != nil {
+		t.Fatalf("Failed to get order at time minus one, error: %s", err.Error())
+	}
+	if sorderAtMinusOne.Size != 10 {
+		t.Fatalf("Expected size at time minus one to be 10, instead %d", sorderAtMinusOne)
+	}
 }
 
 func TestMutatingTwoOrders(t *testing.T) {
@@ -208,6 +229,7 @@ func TestMutatingTwoOrders(t *testing.T) {
 
 	mut := &OrderStateChange{
 		State: STATE_OPEN,
+		Time:  time.Unix(0, 0),
 	}
 	errs := book.MutateOrder("foobar", []OrderMutation{mut})
 	if errs != nil {

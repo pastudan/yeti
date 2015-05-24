@@ -67,14 +67,17 @@ func (book *InMemoryOrderBook) GetOrderVersion(id OrderID, t time.Time) (*Statef
 	}
 
 	order := *history.FirstVersion
-	muts := make([]OrderMutation, len(history.Mutations))
+	muts := make([]OrderMutation, 0)
 	for _, mut := range history.Mutations {
 		if mut.GetTime().Before(t) || mut.GetTime().Equal(t) {
 			muts = append(muts, mut)
 		}
 	}
+	sort.Sort(OrderMutationByTime(muts))
 
-	order = *book.applyMutations(order, muts)
+	if len(muts) > 0 {
+		order = *book.applyMutations(order, muts)
+	}
 
 	return &order, nil
 }
@@ -129,13 +132,3 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) err
 
 	return nil
 }
-
-/*
-type OrderBook interface {
-	PlaceOrder(Order, size int64, time.Time) error
-	MutateOrder(OrderID, []OrderMutation, time.Time) error
-
-	GetOrder(OrderID) (*StatefulOrder, error)
-	GetOrderVersion(OrderID, time.Time) (*StatefulOrder, error)
-}
-*/
