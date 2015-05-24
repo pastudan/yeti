@@ -12,9 +12,8 @@ var (
 )
 
 type OrderBook interface {
-	PlaceOrder(Order, size int64) error
-	MutateOrder(OrderID, []OrderMutation, time.Time) error
-	VoidOrder(OrderID) error
+	PlaceOrder(Order, size int64, t time.Time) error
+	MutateOrder(OrderID, []OrderMutation) error
 
 	GetOrder(OrderID) (StatefulOrder, error)
 	GetOrderVersion(OrderID, time.Time) (StatefulOrder, error)

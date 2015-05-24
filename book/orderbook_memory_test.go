@@ -12,7 +12,7 @@ func TestPlacingOrders(t *testing.T) {
 	}
 
 	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
-	book.PlaceOrder(order, 10)
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
 
 	sorder, err = book.GetOrder("foobar")
 	if err != nil {
@@ -32,7 +32,7 @@ func TestPlacingOrders(t *testing.T) {
 func TestMutatingSingleOrder(t *testing.T) {
 	book := NewInMemoryOrderBook()
 	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
-	book.PlaceOrder(order, 10)
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
 
 	mut := &OrderStateChange{
 		State: STATE_OPEN,
@@ -144,5 +144,81 @@ func TestMutatingSingleOrder(t *testing.T) {
 	}
 	if sorder.Size != 0 {
 		t.Fatalf("Expected an invalid match change on filled order to have size 0; instead size %d", sorder.Size)
+	}
+}
+
+func TestVoidingOrder(t *testing.T) {
+	book := NewInMemoryOrderBook()
+	order := Order{ID: "foobar", Price: 100, Side: SIDE_SELL}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+
+	mut := &OrderStateChange{
+		State: STATE_OPEN,
+	}
+	errs := book.MutateOrder("foobar", []OrderMutation{mut})
+	if errs != nil {
+		t.Fatalf("Unexpected error mutating order book: %s", errs)
+	}
+	sorder, _ := book.GetOrder("foobar")
+	if sorder.State != STATE_OPEN {
+		t.Fatalf("Mutation failed to apply. Expected state %s to be %s", sorder.State, STATE_OPEN)
+	}
+
+	mut = &OrderStateChange{
+		State: STATE_OPEN,
+	}
+	errs = book.MutateOrder("bazbar", []OrderMutation{mut})
+	if errs == nil {
+		t.Fatal("Expected state mutation on non-existent order to be invalid")
+	}
+}
+
+func TestOrderVersions(t *testing.T) {
+	book := NewInMemoryOrderBook()
+	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
+	book.PlaceOrder(order, 10, time.Unix(0, 0))
+
+	mut := &OrderSizeChange{
+		NewSize: 9,
+		Time:    time.Unix(1, 0),
+	}
+	err := book.MutateOrder("foobar", []OrderMutation{mut})
+
+	mut = &OrderSizeChange{
+		NewSize: 5,
+		Time:    time.Unix(2, 0),
+	}
+	err = book.MutateOrder("foobar", []OrderMutation{mut})
+
+	sorderAtZero, err := book.GetOrderVersion("foobar", time.Unix(0, 0))
+	if err != nil {
+		t.Fatalf("Failed to get order at time zero, error: %s", err.Error())
+	}
+	if sorderAtZero.Size != 10 {
+		t.Fatalf("Expected size at time zero to be 10, instead %d", sorderAtZero.Size)
+	}
+}
+
+func TestMutatingTwoOrders(t *testing.T) {
+	book := NewInMemoryOrderBook()
+	orderOne := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
+	orderTwo := Order{ID: "bazbar", Price: 100, Side: SIDE_SELL}
+	book.PlaceOrder(orderOne, 10, time.Unix(0, 0))
+	book.PlaceOrder(orderTwo, 10, time.Unix(0, 0))
+
+	mut := &OrderStateChange{
+		State: STATE_OPEN,
+	}
+	errs := book.MutateOrder("foobar", []OrderMutation{mut})
+	if errs != nil {
+		t.Fatalf("Unexpected error mutating order book: %s", errs)
+	}
+	sorder, _ := book.GetOrder("foobar")
+	if sorder.State != STATE_OPEN {
+		t.Fatalf("Mutation failed to apply. Expected state %s to be open", sorder.State)
+	}
+	sorder, _ = book.GetOrder("bazbar")
+	if sorder.State != STATE_PENDING {
+		t.Fatalf("Unexpected order modification. Expected state %s to be pending", sorder.State)
 	}
 }

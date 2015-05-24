@@ -2,6 +2,7 @@ package book
 
 import "fmt"
 import "sort"
+import "time"
 
 type OrderHistory struct {
 	Mutations     []OrderMutation
@@ -26,63 +27,10 @@ func NewInMemoryOrderBook() (b *InMemoryOrderBook) {
 	return &InMemoryOrderBook{Book: bk}
 }
 
-func (book *InMemoryOrderBook) GetOrder(id OrderID) (sorder *StatefulOrder, err error) {
-	history, ok := book.Book[id]
-	if !ok {
-		return nil, errOrderDoesNotExist
-	} else {
-		return history.LatestVersion, nil
-	}
-}
-
-func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64) (err error) {
-	_, ok := book.Book[order.ID]
-
-	if ok {
-		return errOrderAlreadyExists
-	}
-
-	sorder := &StatefulOrder{
-		Order:  order,
-		State:  STATE_PENDING,
-		Size:   size,
-		Makers: nil,
-	}
-
-	history := OrderHistory{
-		Mutations:     make([]OrderMutation, 0),
-		FirstVersion:  sorder,
-		LatestVersion: sorder,
-	}
-
-	book.Book[order.ID] = history
-
-	return nil
-}
-
-func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) error {
-	var err error = nil
-
-	history, ok := book.Book[id]
-
-	if !ok {
-		return errOrderDoesNotExist
-	}
-
-	if len(muts) == 0 {
-		return nil
-	}
-
-	history.Mutations = append(history.Mutations, muts...)
-	sort.Sort(OrderMutationByTime(history.Mutations))
-
-	order := *history.FirstVersion
-	// To be precise, we might want to copy the Makers which is a []OrderID
-	// but it probably doesn't matter much
-
+func (book *InMemoryOrderBook) applyMutations(order StatefulOrder, muts []OrderMutation) *StatefulOrder {
 	latest_time := muts[0].GetTime()
 	// Re-apply all the mutations
-	for _, mutation := range history.Mutations {
+	for _, mutation := range muts {
 		porder, err := mutation.Apply(&order)
 
 		if err != nil {
@@ -97,19 +45,97 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) err
 	}
 
 	order.LastMutation = latest_time
+
+	return &order
+}
+
+func (book *InMemoryOrderBook) GetOrder(id OrderID) (*StatefulOrder, error) {
+	history, ok := book.Book[id]
+	if !ok {
+		return nil, errOrderDoesNotExist
+	} else {
+		return history.LatestVersion, nil
+	}
+}
+
+// GetOrderVersion returns the order with all mutations less than or equal to t applied.
+func (book *InMemoryOrderBook) GetOrderVersion(id OrderID, t time.Time) (*StatefulOrder, error) {
+	history, ok := book.Book[id]
+
+	if !ok {
+		return nil, errOrderDoesNotExist
+	}
+
+	order := *history.FirstVersion
+	muts := make([]OrderMutation, len(history.Mutations))
+	for _, mut := range history.Mutations {
+		if mut.GetTime().Before(t) || mut.GetTime().Equal(t) {
+			muts = append(muts, mut)
+		}
+	}
+
+	order = *book.applyMutations(order, muts)
+
+	return &order, nil
+}
+
+func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64, t time.Time) (err error) {
+	_, ok := book.Book[order.ID]
+
+	if ok {
+		return errOrderAlreadyExists
+	}
+
+	sorder := &StatefulOrder{
+		Order:  order,
+		State:  STATE_PENDING,
+		Size:   size,
+		Makers: nil,
+	}
+
+	history := OrderHistory{
+		Mutations:     []OrderMutation{&OrderStateChange{State: STATE_PENDING, Time: t}},
+		FirstVersion:  sorder,
+		LatestVersion: sorder,
+	}
+
+	book.Book[order.ID] = history
+
+	return nil
+}
+
+func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) error {
+	history, ok := book.Book[id]
+
+	if !ok {
+		return errOrderDoesNotExist
+	}
+
+	if len(muts) == 0 {
+		return nil
+	}
+
+	// Copy the first version of the order
+	// To be precise, we might want to copy the Makers which is a []OrderID
+	// but it probably doesn't matter much
+	order := *history.FirstVersion
+
+	history.Mutations = append(history.Mutations, muts...)
+	sort.Sort(OrderMutationByTime(history.Mutations))
+
+	order = *book.applyMutations(order, history.Mutations)
 	history.LatestVersion = &order
 	book.Book[id] = history
 
-	return err
+	return nil
 }
 
 /*
 type OrderBook interface {
-	PlaceOrder(Order, size int64) error
+	PlaceOrder(Order, size int64, time.Time) error
 	MutateOrder(OrderID, []OrderMutation, time.Time) error
-	VoidOrder(OrderID) error
 
-	GetOrder(OrderID) (StatefulOrder, error)
-	GetOrderVersion(OrderID, time.Time) (StatefulOrder, error)
+	GetOrder(OrderID) (*StatefulOrder, error)
+	GetOrderVersion(OrderID, time.Time) (*StatefulOrder, error)
 }
 */
