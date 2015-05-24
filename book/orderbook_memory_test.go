@@ -88,4 +88,61 @@ func TestMutatingSingleOrder(t *testing.T) {
 	if sorder.Size != 20 {
 		t.Fatalf("Mutations failed to respect time ordering. Expected order size %d to be 20", sorder.Size)
 	}
+
+	match := &OrderMatch{
+		TradeID:  "a",
+		Size:     15,
+		WasMaker: true,
+		Time:     time.Unix(2, 0),
+	}
+	errs = book.MutateOrder("foobar", []OrderMutation{match})
+	if errs != nil {
+		t.Fatalf("Unexpected error mutating order: %s", errs)
+	}
+	sorder, err = book.GetOrder("foobar")
+	if err != nil {
+		t.Fatalf("Failed to get mutated order: %s", err.Error())
+	}
+	if sorder.Size != 5 {
+		t.Fatalf("Expected a match of 15 units on a 20 unit order to result in 5 units, instead %d units remain", sorder.Size)
+	}
+	if sorder.State != STATE_OPEN {
+		t.Fatalf("Expected partially filled order to still be open, instead %s", sorder.State)
+	}
+
+	match = &OrderMatch{
+		TradeID:  "b",
+		Size:     5,
+		WasMaker: true,
+		Time:     time.Unix(3, 0),
+	}
+	errs = book.MutateOrder("foobar", []OrderMutation{match})
+	if errs != nil {
+		t.Fatalf("Unexpected error mutating order: %s", errs)
+	}
+	sorder, err = book.GetOrder("foobar")
+	if err != nil {
+		t.Fatalf("Failed to get mutated order: %s", err.Error())
+	}
+	if sorder.Size != 0 {
+		t.Fatalf("Expected a match of 5 units on a 5 unit order to result in 0 units, instead %d units remain", sorder.Size)
+	}
+	if sorder.State != STATE_FILLED {
+		t.Fatalf("Expected fully filled order to be state filled, instead %s", sorder.State)
+	}
+
+	match = &OrderMatch{
+		TradeID:  "c",
+		Size:     1,
+		WasMaker: true,
+		Time:     time.Unix(4, 0),
+	}
+	errs = book.MutateOrder("foobar", []OrderMutation{match})
+	sorder, err = book.GetOrder("foobar")
+	if err != nil {
+		t.Fatalf("Failed to get mutated order: %s", err.Error())
+	}
+	if sorder.Size != 0 {
+		t.Fatalf("Expected an invalid match change on filled order to have size 0; instead size %d", sorder.Size)
+	}
 }

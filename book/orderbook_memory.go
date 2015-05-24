@@ -1,7 +1,7 @@
 package book
 
-//import "fmt"
-//import "time"
+import "fmt"
+import "sort"
 
 type OrderHistory struct {
 	Mutations     []OrderMutation
@@ -9,8 +9,16 @@ type OrderHistory struct {
 	LatestVersion *StatefulOrder
 }
 
+func (h *OrderHistory) String() string {
+	return fmt.Sprintf("<OrderHistory of %s>", h.FirstVersion.String())
+}
+
 type InMemoryOrderBook struct {
 	Book map[OrderID]OrderHistory
+}
+
+func (m *InMemoryOrderBook) String() string {
+	return fmt.Sprintf("<InMemoryOrderBook with %d orders>", len(m.Book))
 }
 
 func NewInMemoryOrderBook() (b *InMemoryOrderBook) {
@@ -52,7 +60,9 @@ func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64) (err error) {
 	return nil
 }
 
-func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) (err error) {
+func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) error {
+	var err error = nil
+
 	history, ok := book.Book[id]
 
 	if !ok {
@@ -64,6 +74,7 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) (er
 	}
 
 	history.Mutations = append(history.Mutations, muts...)
+	sort.Sort(OrderMutationByTime(history.Mutations))
 
 	order := *history.FirstVersion
 	// To be precise, we might want to copy the Makers which is a []OrderID
@@ -72,8 +83,15 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) (er
 	latest_time := muts[0].GetTime()
 	// Re-apply all the mutations
 	for _, mutation := range history.Mutations {
-		order = *mutation.Apply(&order)
-		if latest_time.Before(mutation.GetTime()) {
+		porder, err := mutation.Apply(&order)
+
+		if err != nil {
+			continue
+		}
+
+		order = *porder
+
+		if !latest_time.Before(mutation.GetTime()) {
 			latest_time = mutation.GetTime()
 		}
 	}
@@ -82,7 +100,7 @@ func (book *InMemoryOrderBook) MutateOrder(id OrderID, muts []OrderMutation) (er
 	history.LatestVersion = &order
 	book.Book[id] = history
 
-	return nil
+	return err
 }
 
 /*
