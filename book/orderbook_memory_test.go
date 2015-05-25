@@ -142,7 +142,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 		t.Fatalf("Mutations failed to respect time ordering. Expected order size %d to be 20", sorder.Size)
 	}
 
-	match := &OrderMatch{
+	match := &OrderMatchMutation{
 		TradeID:  "a",
 		Size:     15,
 		WasMaker: true,
@@ -163,7 +163,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 		t.Fatalf("Expected partially filled order to still be open, instead %s", sorder.State)
 	}
 
-	match = &OrderMatch{
+	match = &OrderMatchMutation{
 		TradeID:  "b",
 		Size:     5,
 		WasMaker: true,
@@ -184,7 +184,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 		t.Fatalf("Expected fully filled order to be state filled, instead %s", sorder.State)
 	}
 
-	match = &OrderMatch{
+	match = &OrderMatchMutation{
 		TradeID:  "c",
 		Size:     1,
 		WasMaker: true,

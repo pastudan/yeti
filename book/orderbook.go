@@ -70,7 +70,7 @@ func (m *OrderSizeMutation) GetTime() time.Time {
 	return m.Time
 }
 
-type OrderMatch struct {
+type OrderMatchMutation struct {
 	TradeID  string
 	Size     int64
 	WasMaker bool
@@ -78,11 +78,11 @@ type OrderMatch struct {
 	Time     time.Time
 }
 
-func (m *OrderMatch) String() string {
-	return fmt.Sprintf("<OrderMatch of %d units at %s; trade id=%s>", m.Size, m.Time.String(), m.TradeID)
+func (m *OrderMatchMutation) String() string {
+	return fmt.Sprintf("<OrderMatchMutation of %d units at %s; trade id=%s>", m.Size, m.Time.String(), m.TradeID)
 }
 
-func (m *OrderMatch) Apply(s *StatefulOrder) (*StatefulOrder, error) {
+func (m *OrderMatchMutation) Apply(s *StatefulOrder) (*StatefulOrder, error) {
 	new_order := *s // copy
 
 	if s.State != STATE_OPEN {
@@ -106,6 +106,39 @@ func (m *OrderMatch) Apply(s *StatefulOrder) (*StatefulOrder, error) {
 	return &new_order, nil
 }
 
-func (m *OrderMatch) GetTime() time.Time {
+func (m *OrderMatchMutation) GetTime() time.Time {
 	return m.Time
+}
+
+type OrderBookCommand interface {
+	Apply(book *OrderBook) error
+}
+
+type OrderBookMutationCommand struct {
+	ID        OrderID
+	Mutations []OrderMutation
+}
+
+func (c *OrderBookMutationCommand) Apply(book *OrderBook) error {
+	return (*book).MutateOrder(c.ID, c.Mutations)
+}
+
+type OrderBookPlacementCommand struct {
+	Order Order
+	Size  int64
+	Time  time.Time
+}
+
+func (p *OrderBookPlacementCommand) Apply(book *OrderBook) error {
+	return (*book).PlaceOrder(p.Order, p.Size, p.Time)
+}
+
+type OrderHistory struct {
+	Mutations     []OrderMutation
+	FirstVersion  *StatefulOrder
+	LatestVersion *StatefulOrder
+}
+
+func (h *OrderHistory) String() string {
+	return fmt.Sprintf("<OrderHistory of %s>", h.FirstVersion.String())
 }

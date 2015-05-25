@@ -4,16 +4,6 @@ import "fmt"
 import "sort"
 import "time"
 
-type OrderHistory struct {
-	Mutations     []OrderMutation
-	FirstVersion  *StatefulOrder
-	LatestVersion *StatefulOrder
-}
-
-func (h *OrderHistory) String() string {
-	return fmt.Sprintf("<OrderHistory of %s>", h.FirstVersion.String())
-}
-
 type InMemoryOrderBook struct {
 	Book               map[OrderID]*OrderHistory
 	PriceLevels        map[int64][]*OrderHistory
