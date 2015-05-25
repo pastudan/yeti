@@ -23,11 +23,12 @@ func CalculateTotalCentsInPlayInMemory(book *InMemoryOrderBook, t time.Time) int
 func CalculateNumberOfOpenOrdersInMemory(book *InMemoryOrderBook, t time.Time) int64 {
 	var openOrders int64 = 0
 
-	/*
-		for _, order := range book.Book {
-			//if order.LatestVersion.
+	for orderId, _ := range book.Book {
+		order, _ := book.GetOrderVersion(orderId, t)
+		if order.State == STATE_OPEN {
+			openOrders += 1
 		}
-	*/
+	}
 
 	return openOrders
 }

@@ -56,5 +56,42 @@ func TestCalculateCentsInPlayInMemory(t *testing.T) {
 }
 
 func TestCalculateNumberOfOpenOrders(t *testing.T) {
+	book := NewInMemoryOrderBook()
+	orderOne := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
+	orderTwo := Order{ID: "bazbar", Price: 100, Side: SIDE_SELL}
+	book.PlaceOrder(orderOne, 10, time.Unix(0, 0))
+	book.PlaceOrder(orderTwo, 10, time.Unix(0, 0))
 
+	openOrders := CalculateNumberOfOpenOrdersInMemory(book, time.Unix(0, 0))
+	if openOrders != 0 {
+		t.Fatalf("Expected number of open orders at t=0 to be 0, instead %d", openOrders)
+	}
+
+	book.MutateOrder("foobar", []OrderMutation{&OrderStateMutation{
+		State: STATE_OPEN,
+		Time:  time.Unix(1, 0),
+	}})
+
+	openOrders = CalculateNumberOfOpenOrdersInMemory(book, time.Unix(0, 0))
+	if openOrders != 0 {
+		t.Fatalf("Expected number of open orders at t=0 after mutation to be 0, instead %d", openOrders)
+	}
+	openOrders = CalculateNumberOfOpenOrdersInMemory(book, time.Unix(1, 0))
+	if openOrders != 1 {
+		t.Fatalf("Expected number of open orders at t=1 to be 1, instead %d", openOrders)
+	}
+
+	book.MutateOrder("bazbar", []OrderMutation{&OrderStateMutation{
+		State: STATE_OPEN,
+		Time:  time.Unix(2, 0),
+	}})
+
+	openOrders = CalculateNumberOfOpenOrdersInMemory(book, time.Unix(1, 0))
+	if openOrders != 1 {
+		t.Fatalf("Expected number of open orders at t=1 after mutation to be 1, instead %d", openOrders)
+	}
+	openOrders = CalculateNumberOfOpenOrdersInMemory(book, time.Unix(2, 0))
+	if openOrders != 2 {
+		t.Fatalf("Expected number of open orders at t=2 after mutation to be 2, instead %d", openOrders)
+	}
 }

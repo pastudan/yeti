@@ -225,11 +225,19 @@ func TestOrderVersions(t *testing.T) {
 	order := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
 	book.PlaceOrder(order, 10, time.Unix(0, 0))
 
+	sorderAtZero, err := book.GetOrderVersion("foobar", time.Unix(0, 0))
+	if err != nil {
+		t.Fatalf("Failed to get order at time zero, error: %s", err.Error())
+	}
+	if sorderAtZero.Size != 10 {
+		t.Fatalf("Expected size at time zero to be 10, instead %d", sorderAtZero.Size)
+	}
+
 	mut := &OrderSizeMutation{
 		NewSize: 9,
 		Time:    time.Unix(1, 0),
 	}
-	err := book.MutateOrder("foobar", []OrderMutation{mut})
+	err = book.MutateOrder("foobar", []OrderMutation{mut})
 
 	mut = &OrderSizeMutation{
 		NewSize: 5,
@@ -237,7 +245,7 @@ func TestOrderVersions(t *testing.T) {
 	}
 	err = book.MutateOrder("foobar", []OrderMutation{mut})
 
-	sorderAtZero, err := book.GetOrderVersion("foobar", time.Unix(0, 0))
+	sorderAtZero, err = book.GetOrderVersion("foobar", time.Unix(0, 0))
 	if err != nil {
 		t.Fatalf("Failed to get order at time zero, error: %s", err.Error())
 	}
@@ -328,5 +336,34 @@ func TestLatestMutationTime(t *testing.T) {
 
 	if !book.LatestMutationTime.Equal(time.Unix(0, 0)) {
 		t.Fatalf("Expected latest mutation time to be %s, instead %s", time.Unix(0, 0), book.LatestMutationTime)
+	}
+
+	mut := &OrderStateMutation{
+		State: STATE_OPEN,
+		Time:  time.Unix(1, 0),
+	}
+	book.MutateOrder("foobar", []OrderMutation{mut})
+
+	if !book.LatestMutationTime.Equal(time.Unix(1, 0)) {
+		t.Fatalf("Expected latest mutation time of the order book to be %s, instead %s", time.Unix(1, 0), book.LatestMutationTime)
+	}
+
+	sorder, _ := book.GetOrder("foobar")
+	if !sorder.LatestMutationTime.Equal(time.Unix(1, 0)) {
+		t.Fatalf("Expected latest mutation time of the order to be %s, instead %s", time.Unix(1, 0), sorder.LatestMutationTime)
+	}
+
+	sorder, _ = book.GetOrderVersion("foobar", time.Unix(0, 0))
+	if !sorder.LatestMutationTime.Equal(time.Unix(0, 0)) {
+		t.Fatalf("Expected latest mutation time of the order at t=0 to be %s, instead %s", time.Unix(0, 0), sorder.LatestMutationTime)
+	}
+
+	book.MutateOrder("foobar", []OrderMutation{&OrderSizeMutation{
+		NewSize: 5,
+		Time:    time.Unix(0, 0),
+	}})
+
+	if !book.LatestMutationTime.Equal(time.Unix(1, 0)) {
+		t.Fatalf("Expected latest mutation time of the order book to be %s, instead %s", time.Unix(1, 0), book.LatestMutationTime)
 	}
 }

@@ -44,7 +44,7 @@ func (book *InMemoryOrderBook) applyMutations(order StatefulOrder, muts []OrderM
 
 		order = *porder
 
-		if !latest_time.Before(mutation.GetTime()) {
+		if latest_time.Before(mutation.GetTime()) {
 			latest_time = mutation.GetTime()
 		}
 	}
@@ -71,6 +71,12 @@ func (book *InMemoryOrderBook) GetOrderVersion(id OrderID, t time.Time) (*Statef
 		return nil, errOrderDoesNotExist
 	}
 
+	// Short circuit to avoid expensively (?) replaying mutations
+	if t.After(history.LatestVersion.LatestMutationTime) {
+		return history.LatestVersion, nil
+	}
+
+	// Filter the mutations to only the ones before or at t
 	order := *history.FirstVersion
 	muts := make([]OrderMutation, 0)
 	for _, mut := range history.Mutations {
@@ -95,10 +101,11 @@ func (book *InMemoryOrderBook) PlaceOrder(order Order, size int64, t time.Time) 
 	}
 
 	sorder := &StatefulOrder{
-		Order:  order,
-		State:  STATE_PENDING,
-		Size:   size,
-		Makers: nil,
+		Order:              order,
+		State:              STATE_PENDING,
+		Size:               size,
+		Makers:             nil,
+		LatestMutationTime: t,
 	}
 
 	history := &OrderHistory{
@@ -201,9 +208,9 @@ func (book *InMemoryOrderBook) GetPriceLevels() []int64 {
 
 // Vacuuming removes all of the voided or filled orders
 func (book *InMemoryOrderBook) Vacuum() {
-	for order_id, history := range book.Book {
+	for orderId, history := range book.Book {
 		if history.LatestVersion.State == STATE_FILLED || history.LatestVersion.State == STATE_VOID {
-			delete(book.Book, order_id)
+			delete(book.Book, orderId)
 		}
 	}
 }

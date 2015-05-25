@@ -41,5 +41,5 @@ type StatefulOrder struct {
 }
 
 func (o *StatefulOrder) String() string {
-	return fmt.Sprintf("<%s StatefulOrder at price %d for %d units; last changed at %s; id=%s>", o.Side, o.Price, o.Size, o.LatestMutationTime, o.ID)
+	return fmt.Sprintf("<%s %s StatefulOrder at price %d for %d units; last changed at %s; id=%s>", o.Side, o.State, o.Price, o.Size, o.LatestMutationTime, o.ID)
 }
