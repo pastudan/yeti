@@ -12,7 +12,7 @@ var (
 )
 
 type OrderBook interface {
-	PlaceOrder(Order, size int64, t time.Time) error
+	PlaceOrder(o Order, size int64, t time.Time) error
 	MutateOrder(OrderID, []OrderMutation) error
 	Vacuum()
 
