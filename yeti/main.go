@@ -5,7 +5,7 @@ import (
 	"bitbucket.org/jacobgreenleaf/yeti/coinbase"
 	//"container/list"
 	"encoding/json"
-	//"fmt"
+	"time"
 	//"github.com/cactus/go-statsd-client/statsd"
 	"github.com/gorilla/websocket"
 	"io"
@@ -69,8 +69,6 @@ func main() {
 				break
 			}
 
-			log.Printf("%d commands decoded. Applying...", len(cmds))
-
 			for _, cmd := range cmds {
 				err = cmd.Apply(orderBook)
 				if err != nil {
@@ -78,7 +76,11 @@ func main() {
 				}
 			}
 
-			log.Printf("Done applying commands.")
+			priceLevels := orderBook.GetPriceLevels()
+			centsInPlay := book.CalculateTotalCentsInPlayInMemory(orderBook, time.Now())
+			openOrders := book.CalculateNumberOfOpenOrdersInMemory(orderBook, time.Now())
+
+			log.Printf("There are %d open orders at %d price levels and %d dollars in play", openOrders, len(priceLevels), centsInPlay/int64(100*coinbase.SATOSHI))
 		}
 	}
 
