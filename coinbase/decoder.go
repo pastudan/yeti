@@ -13,6 +13,8 @@ var (
 	MESSAGE_CHANGE   = "change"
 	MESSAGE_DONE     = "done"
 	MESSAGE_ERROR    = "error"
+	REASON_FILLED    = "filled"
+	REASON_CANCELLED = "cancelled"
 	SATOSHI          = 100000000
 )
 
@@ -53,12 +55,13 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 	case MESSAGE_RECEIVED:
 
 		coinbaseSize, err := strconv.ParseFloat(coinbaseEvent["size"].(string), 64)
-		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
 
 		if err != nil {
 			log.Fatalf("Failed to parse float size: %s", coinbaseEvent["size"].(string))
 			return nil
 		}
+
+		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
 
 		cmds = append(cmds, &book.OrderBookPlacementCommand{
 			Order: book.Order{
@@ -71,12 +74,83 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 		})
 		break
 	case MESSAGE_OPEN:
-		break
-	case MESSAGE_MATCH:
-		break
-	case MESSAGE_CHANGE:
+
+		coinbaseSize, err := strconv.ParseFloat(coinbaseEvent["remaining_size"].(string), 64)
+
+		if err != nil {
+			log.Fatalf("Failed to parse float size: %s", coinbaseEvent["size"].(string))
+			return nil
+		}
+
+		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
+
+		muts := make([]book.OrderMutation, 0, 2)
+		muts = append(muts, &book.OrderSizeMutation{
+			NewSize: coinbaseSizeSatoshi,
+			Time:    coinbaseTime,
+		})
+		muts = append(muts, &book.OrderStateMutation{
+			State: book.STATE_OPEN,
+			Time:  coinbaseTime,
+		})
+
+		cmds = append(cmds, &book.OrderBookMutationCommand{
+			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+			Mutations: muts,
+		})
 		break
 	case MESSAGE_DONE:
+		reason := coinbaseEvent["reason"].(string)
+
+		coinbaseSize, err := strconv.ParseFloat(coinbaseEvent["remaining_size"].(string), 64)
+		if err != nil {
+			log.Fatalf("Failed to parse float size: %s", coinbaseEvent["size"].(string))
+			return nil
+		}
+		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
+
+		var coinbaseState string
+
+		if REASON_FILLED == reason {
+			coinbaseState = book.STATE_FILLED
+		} else if REASON_CANCELLED == reason {
+			coinbaseState = book.STATE_VOID
+		}
+
+		muts := make([]book.OrderMutation, 0, 2)
+		muts = append(muts, &book.OrderSizeMutation{
+			NewSize: coinbaseSizeSatoshi,
+			Time:    coinbaseTime,
+		})
+		muts = append(muts, &book.OrderStateMutation{
+			State: coinbaseState,
+			Time:  coinbaseTime,
+		})
+
+		cmds = append(cmds, &book.OrderBookMutationCommand{
+			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+			Mutations: muts,
+		})
+		break
+	case MESSAGE_MATCH:
+		maker_id := coinbaseEvent["maker_order_id"].(string)
+		taker_id := coinbaseEvent["taker_order_id"].(string)
+
+		taker_muts := []book.OrderMutation{&book.OrderMatchMutation{
+			TradeID  string
+			Size     int64
+			WasMaker bool
+			MakerID  OrderID
+			Time     time.Time
+		}}
+
+		cmd_taker := &bok.OrderBookMutationCommand{
+			ID:        book.OrderID(taker_id),
+			Mutations: taker_muts,
+		}
+
+		break
+	case MESSAGE_CHANGE:
 		break
 	case MESSAGE_ERROR:
 		break
