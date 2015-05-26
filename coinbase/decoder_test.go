@@ -2,7 +2,7 @@ package coinbase
 
 import "time"
 import "testing"
-import "bitbucket.org/jacobgreenleaf/yeti/book"
+import "github.com/jacobgreenleaf/yeti/book"
 
 func TestDecodingReceiveOrders(t *testing.T) {
 	cmds := DecodeRealtimeEvent([]byte(`

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"bitbucket.org/jacobgreenleaf/yeti/book"
-	"bitbucket.org/jacobgreenleaf/yeti/coinbase"
+	"github.com/jacobgreenleaf/yeti/book"
+	"github.com/jacobgreenleaf/yeti/coinbase"
 	//"container/list"
 	"time"
 	//"github.com/cactus/go-statsd-client/statsd"

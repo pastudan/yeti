@@ -1,7 +1,7 @@
 package coinbase
 
 import "encoding/json"
-import "bitbucket.org/jacobgreenleaf/yeti/book"
+import "github.com/jacobgreenleaf/yeti/book"
 import "strconv"
 import "log"
 import "time"
