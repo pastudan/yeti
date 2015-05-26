@@ -367,3 +367,54 @@ func TestLatestMutationTime(t *testing.T) {
 		t.Fatalf("Expected latest mutation time of the order book to be %s, instead %s", time.Unix(1, 0), book.LatestMutationTime)
 	}
 }
+
+func TestOrderBookCommands(t *testing.T) {
+	var err error
+
+	book := NewInMemoryOrderBook()
+
+	placementCmd := OrderBookPlacementCommand{
+		Order: Order{
+			ID:    "foobar",
+			Price: 100,
+			Side:  SIDE_SELL,
+		},
+		Size: 10,
+		Time: time.Unix(0, 0),
+	}
+
+	err = placementCmd.Apply(book)
+	if err != nil {
+		t.Fatalf("Unexpected error when executing order placement command: %s", err.Error())
+	}
+
+	order, err := book.GetOrder("foobar")
+	if order == nil || err == errOrderDoesNotExist {
+		t.Fatalf("Placement command failed to place an order.")
+	} else if err != nil {
+		t.Fatalf("Unexpected error when getting order: %s", err.Error())
+	}
+
+	mutationCmd := OrderBookMutationCommand{
+		ID: "foobar",
+		Mutations: []OrderMutation{&OrderStateMutation{
+			State: STATE_OPEN,
+			Time:  time.Unix(1, 0),
+		}},
+	}
+
+	err = mutationCmd.Apply(book)
+	if err != nil {
+		t.Fatalf("Unexpected error when executing order mutation command: %s", err.Error())
+	}
+
+	order, err = book.GetOrder("foobar")
+	if order == nil || err == errOrderDoesNotExist {
+		t.Fatalf("Mutation command unexpectedly deleted order? Error not found.")
+	} else if err != nil {
+		t.Fatalf("Unexpected error when getting order: %s", err.Error())
+	}
+	if order.State != STATE_OPEN {
+		t.Fatalf("Mutation command failed to change state. Expected %s to be %s", order.State, STATE_OPEN)
+	}
+}

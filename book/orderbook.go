@@ -16,8 +16,8 @@ type OrderBook interface {
 	MutateOrder(OrderID, []OrderMutation) error
 	Vacuum()
 
-	GetOrder(OrderID) (StatefulOrder, error)
-	GetOrderVersion(OrderID, time.Time) (StatefulOrder, error)
+	GetOrder(OrderID) (*StatefulOrder, error)
+	GetOrderVersion(OrderID, time.Time) (*StatefulOrder, error)
 	GetPriceLevel(int64) []*StatefulOrder
 }
 
@@ -107,7 +107,7 @@ func (m *OrderMatchMutation) GetTime() time.Time {
 }
 
 type OrderBookCommand interface {
-	Apply(book *OrderBook) error
+	Apply(book OrderBook) error
 }
 
 type OrderBookMutationCommand struct {
@@ -115,8 +115,8 @@ type OrderBookMutationCommand struct {
 	Mutations []OrderMutation
 }
 
-func (c *OrderBookMutationCommand) Apply(book *OrderBook) error {
-	return (*book).MutateOrder(c.ID, c.Mutations)
+func (c *OrderBookMutationCommand) Apply(book OrderBook) error {
+	return book.MutateOrder(c.ID, c.Mutations)
 }
 
 type OrderBookPlacementCommand struct {
@@ -125,8 +125,8 @@ type OrderBookPlacementCommand struct {
 	Time  time.Time
 }
 
-func (p *OrderBookPlacementCommand) Apply(book *OrderBook) error {
-	return (*book).PlaceOrder(p.Order, p.Size, p.Time)
+func (p *OrderBookPlacementCommand) Apply(book OrderBook) error {
+	return book.PlaceOrder(p.Order, p.Size, p.Time)
 }
 
 type OrderHistory struct {
