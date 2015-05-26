@@ -95,3 +95,52 @@ func TestCalculateNumberOfOpenOrders(t *testing.T) {
 		t.Fatalf("Expected number of open orders at t=2 after mutation to be 2, instead %d", openOrders)
 	}
 }
+
+func TestCalculateBidMedianAsk(t *testing.T) {
+	var bid, median, ask, spread int64
+
+	book := NewInMemoryOrderBook()
+	orderOne := Order{ID: "foobar", Price: 100, Side: SIDE_BUY}
+	orderTwo := Order{ID: "bazbar", Price: 110, Side: SIDE_SELL}
+	book.PlaceOrder(orderOne, 10, time.Unix(0, 0))
+	book.PlaceOrder(orderTwo, 10, time.Unix(0, 0))
+
+	bid, median, ask, spread = CalculateBidMedianAskSpreadInMemory(book, time.Unix(0, 0))
+	if bid != -1 {
+		t.Fatalf("Expected bid at t=0 to be -1, instead %d", bid)
+	}
+	if median != -1 {
+		t.Fatalf("Expected median at t=0 to be -1, instead %d", median)
+	}
+	if ask != -1 {
+		t.Fatalf("Expected ask at t=0 to be -1, instead %d", ask)
+	}
+	if spread != 0 {
+		t.Fatalf("Expected spread at t=0 to be -1, instead %d", spread)
+	}
+
+	book.MutateOrder("foobar", []OrderMutation{&OrderStateMutation{
+		State: STATE_OPEN,
+		Time:  time.Unix(1, 0),
+	}})
+
+	book.MutateOrder("bazbar", []OrderMutation{&OrderStateMutation{
+		State: STATE_OPEN,
+		Time:  time.Unix(1, 0),
+	}})
+
+	bid, median, ask, spread = CalculateBidMedianAskSpreadInMemory(book, time.Unix(1, 0))
+	if bid != 100 {
+		t.Fatalf("Expected bid at t=1 to be 100, instead %d", bid)
+	}
+	if ask != 110 {
+		t.Fatalf("Expected ask at t=1 to be 110, instead %d", ask)
+	}
+	if median != 105 {
+		t.Fatalf("Expected median at t=1 to be 105, instead %d", median)
+	}
+	if spread != 10 {
+		t.Fatalf("Expected spread at t=1 to be 10, instead %d", spread)
+	}
+
+}

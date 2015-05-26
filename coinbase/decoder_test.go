@@ -22,7 +22,7 @@ func TestDecodingReceiveOrders(t *testing.T) {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].(*book.OrderBookPlacementCommand)
+	cmd := cmds[0].Command.(*book.OrderBookPlacementCommand)
 
 	if cmd.Order.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.Order.ID)
@@ -60,7 +60,7 @@ func TestDecodingOpenOrders(t *testing.T) {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].(*book.OrderBookMutationCommand)
+	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.ID)
@@ -128,7 +128,7 @@ func TestDecodingDoneFilledOrders(t *testing.T) {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].(*book.OrderBookMutationCommand)
+	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.ID)
@@ -195,7 +195,7 @@ func TestDecodingDoneCancelledOrders(t *testing.T) {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].(*book.OrderBookMutationCommand)
+	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.ID)
@@ -267,67 +267,67 @@ func TestDecodingMatchOrders(t *testing.T) {
 		t.Fatalf("Expected two order book commands, but got %d", len(cmds))
 	}
 
-	var cmd_maker, cmd_taker *book.OrderBookMutationCommand = nil, nil
-	cmd_one := cmds[0].(*book.OrderBookMutationCommand)
-	cmd_two := cmds[1].(*book.OrderBookMutationCommand)
+	var cmdMaker, cmdTaker *book.OrderBookMutationCommand = nil, nil
+	cmdOne := cmds[0].Command.(*book.OrderBookMutationCommand)
+	cmdTwo := cmds[1].Command.(*book.OrderBookMutationCommand)
 
-	if cmd_one.ID == "ac928c66-ca53-498f-9c13-a110027a60e8" {
-		cmd_maker = cmd_one
-	} else if cmd_one.ID == "132fb6ae-456b-4654-b4e0-d681ac05cea1" {
-		cmd_taker = cmd_one
+	if cmdOne.ID == "ac928c66-ca53-498f-9c13-a110027a60e8" {
+		cmdMaker = cmdOne
+	} else if cmdOne.ID == "132fb6ae-456b-4654-b4e0-d681ac05cea1" {
+		cmdTaker = cmdOne
 	} else {
-		t.Fatalf("Unexpected order id %s (%s)", cmd_one.ID, cmd_one)
+		t.Fatalf("Unexpected order id %s (%s)", cmdOne.ID, cmdOne)
 	}
 
-	if cmd_two.ID == "ac928c66-ca53-498f-9c13-a110027a60e8" {
-		cmd_maker = cmd_two
-	} else if cmd_two.ID == "132fb6ae-456b-4654-b4e0-d681ac05cea1" {
-		cmd_taker = cmd_two
+	if cmdTwo.ID == "ac928c66-ca53-498f-9c13-a110027a60e8" {
+		cmdMaker = cmdTwo
+	} else if cmdTwo.ID == "132fb6ae-456b-4654-b4e0-d681ac05cea1" {
+		cmdTaker = cmdTwo
 	} else {
-		t.Fatalf("Unexpected order id %s (%s)", cmd_one.ID, cmd_one)
+		t.Fatalf("Unexpected order id %s (%s)", cmdOne.ID, cmdOne)
 	}
 
-	if cmd_maker == nil {
+	if cmdMaker == nil {
 		t.Fatal("Expected maker order to be present")
 	}
-	if cmd_taker == nil {
+	if cmdTaker == nil {
 		t.Fatal("Expected maker order to be present")
 	}
 
 	dt := time.Date(2014, 11, 7, 8, 19, 27, 28459000, time.UTC)
 
-	maker_mutations := cmd_maker.Mutations
-	taker_mutations := cmd_taker.Mutations
+	makerMutations := cmdMaker.Mutations
+	takerMutations := cmdTaker.Mutations
 
-	if maker_mutations == nil || len(maker_mutations) != 1 || taker_mutations == nil || len(taker_mutations) != 1 {
+	if makerMutations == nil || len(makerMutations) != 1 || takerMutations == nil || len(takerMutations) != 1 {
 		t.Fatalf("Expected one mutation")
 	}
 
-	maker_mutation := maker_mutations[0].(*book.OrderMatchMutation)
+	makerMutation := makerMutations[0].(*book.OrderMatchMutation)
 
-	if maker_mutation.Size != 523512000 {
-		t.Fatalf("Expected size to be 523512000 satoshis, instead %d", maker_mutation.Size)
+	if makerMutation.Size != 523512000 {
+		t.Fatalf("Expected size to be 523512000 satoshis, instead %d", makerMutation.Size)
 	}
-	if !maker_mutation.Time.Equal(dt) {
-		t.Fatalf("Expected size mutation to be at %s instead %s", dt, maker_mutation.Time)
+	if !makerMutation.Time.Equal(dt) {
+		t.Fatalf("Expected size mutation to be at %s instead %s", dt, makerMutation.Time)
 	}
-	if !maker_mutation.WasMaker {
+	if !makerMutation.WasMaker {
 		t.Fatal("Epected maker mutation to be a maker")
 	}
 
-	taker_mutation := taker_mutations[0].(*book.OrderMatchMutation)
+	takerMutation := takerMutations[0].(*book.OrderMatchMutation)
 
-	if taker_mutation.Size != 523512000 {
-		t.Fatalf("Expected size to be 523512000 satoshis, instead %d", taker_mutation.Size)
+	if takerMutation.Size != 523512000 {
+		t.Fatalf("Expected size to be 523512000 satoshis, instead %d", takerMutation.Size)
 	}
-	if !taker_mutation.Time.Equal(dt) {
-		t.Fatalf("Expected size mutation to be at %s instead %s", dt, taker_mutation.Time)
+	if !takerMutation.Time.Equal(dt) {
+		t.Fatalf("Expected size mutation to be at %s instead %s", dt, takerMutation.Time)
 	}
-	if taker_mutation.WasMaker {
+	if takerMutation.WasMaker {
 		t.Fatal("Epected taker mutation to be a taker")
 	}
-	if taker_mutation.MakerID != "ac928c66-ca53-498f-9c13-a110027a60e8" {
-		t.Fatalf("Expected taker maker id to be ac928c66-ca53-498f-9c13-a110027a60e8, instead %s", taker_mutation.MakerID)
+	if takerMutation.MakerID != "ac928c66-ca53-498f-9c13-a110027a60e8" {
+		t.Fatalf("Expected taker maker id to be ac928c66-ca53-498f-9c13-a110027a60e8, instead %s", takerMutation.MakerID)
 	}
 }
 
@@ -354,7 +354,7 @@ func TestDecodingChangeOrders(t *testing.T) {
 		t.Fatalf("Expected one order book command, but got %d", len(cmds))
 	}
 
-	cmd := cmds[0].(*book.OrderBookMutationCommand)
+	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "ac928c66-ca53-498f-9c13-a110027a60e8" {
 		t.Fatalf("Expected order id to be ac928c66-ca53-498f-9c13-a110027a60e8, instead %s", cmd.ID)

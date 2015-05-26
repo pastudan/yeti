@@ -18,7 +18,12 @@ var (
 	SATOSHI          = 100000000
 )
 
-func Decode(rawMsg []byte) []book.OrderBookCommand {
+type CoinbaseOrderBookCommand struct {
+	Command  book.OrderBookCommand
+	Sequence int64
+}
+
+func Decode(rawMsg []byte) []CoinbaseOrderBookCommand {
 	var coinbaseEvent map[string]interface{}
 
 	err := json.Unmarshal(rawMsg, &coinbaseEvent)
@@ -28,7 +33,7 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 		return nil
 	}
 
-	cmds := make([]book.OrderBookCommand, 0)
+	cmds := make([]CoinbaseOrderBookCommand, 0)
 
 	coinbaseType, _ := coinbaseEvent["type"].(string)
 
@@ -45,6 +50,7 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 	coinbaseSide := coinbaseEvent["side"].(string)
 	coinbasePrice, err := strconv.ParseFloat(coinbaseEvent["price"].(string), 64)
 	coinbasePriceCents := int64(coinbasePrice * 100)
+	coinbaseSequenceNumber := int64(coinbaseEvent["sequence"].(float64))
 
 	if err != nil {
 		log.Fatalf("Failed to parse float price %s", coinbaseEvent["price"].(string))
@@ -63,14 +69,17 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 
 		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
 
-		cmds = append(cmds, &book.OrderBookPlacementCommand{
-			Order: book.Order{
-				ID:    book.OrderID(coinbaseEvent["order_id"].(string)),
-				Price: coinbasePriceCents,
-				Side:  coinbaseSide,
+		cmds = append(cmds, CoinbaseOrderBookCommand{
+			Command: &book.OrderBookPlacementCommand{
+				Order: book.Order{
+					ID:    book.OrderID(coinbaseEvent["order_id"].(string)),
+					Price: coinbasePriceCents,
+					Side:  coinbaseSide,
+				},
+				Size: coinbaseSizeSatoshi,
+				Time: coinbaseTime,
 			},
-			Size: coinbaseSizeSatoshi,
-			Time: coinbaseTime,
+			Sequence: coinbaseSequenceNumber,
 		})
 		break
 	case MESSAGE_OPEN:
@@ -94,9 +103,12 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 			Time:  coinbaseTime,
 		})
 
-		cmds = append(cmds, &book.OrderBookMutationCommand{
-			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
-			Mutations: muts,
+		cmds = append(cmds, CoinbaseOrderBookCommand{
+			Command: &book.OrderBookMutationCommand{
+				ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+				Mutations: muts,
+			},
+			Sequence: coinbaseSequenceNumber,
 		})
 		break
 	case MESSAGE_DONE:
@@ -127,14 +139,17 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 			Time:  coinbaseTime,
 		})
 
-		cmds = append(cmds, &book.OrderBookMutationCommand{
-			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
-			Mutations: muts,
+		cmds = append(cmds, CoinbaseOrderBookCommand{
+			Command: &book.OrderBookMutationCommand{
+				ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+				Mutations: muts,
+			},
+			Sequence: coinbaseSequenceNumber,
 		})
 		break
 	case MESSAGE_MATCH:
-		maker_id := book.OrderID(coinbaseEvent["maker_order_id"].(string))
-		taker_id := book.OrderID(coinbaseEvent["taker_order_id"].(string))
+		makerId := book.OrderID(coinbaseEvent["maker_order_id"].(string))
+		takerId := book.OrderID(coinbaseEvent["taker_order_id"].(string))
 
 		coinbaseSize, err := strconv.ParseFloat(coinbaseEvent["size"].(string), 64)
 		if err != nil {
@@ -144,34 +159,40 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
 		tradeId := int64(coinbaseEvent["trade_id"].(float64))
 
-		taker_muts := []book.OrderMutation{&book.OrderMatchMutation{
+		takerMuts := []book.OrderMutation{&book.OrderMatchMutation{
 			TradeID:  tradeId,
 			Size:     coinbaseSizeSatoshi,
 			WasMaker: false,
-			MakerID:  maker_id,
+			MakerID:  makerId,
 			Time:     coinbaseTime,
 		}}
 
-		cmd_taker := &book.OrderBookMutationCommand{
-			ID:        taker_id,
-			Mutations: taker_muts,
+		cmdTaker := &book.OrderBookMutationCommand{
+			ID:        takerId,
+			Mutations: takerMuts,
 		}
 
-		cmds = append(cmds, cmd_taker)
+		cmds = append(cmds, CoinbaseOrderBookCommand{
+			Command:  cmdTaker,
+			Sequence: coinbaseSequenceNumber,
+		})
 
-		maker_muts := []book.OrderMutation{&book.OrderMatchMutation{
+		makerMuts := []book.OrderMutation{&book.OrderMatchMutation{
 			TradeID:  tradeId,
 			Size:     coinbaseSizeSatoshi,
 			WasMaker: true,
 			Time:     coinbaseTime,
 		}}
 
-		cmd_maker := &book.OrderBookMutationCommand{
-			ID:        maker_id,
-			Mutations: maker_muts,
+		cmdMaker := &book.OrderBookMutationCommand{
+			ID:        makerId,
+			Mutations: makerMuts,
 		}
 
-		cmds = append(cmds, cmd_maker)
+		cmds = append(cmds, CoinbaseOrderBookCommand{
+			Command:  cmdMaker,
+			Sequence: coinbaseSequenceNumber,
+		})
 
 		break
 	case MESSAGE_CHANGE:
@@ -187,9 +208,12 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 			Time:    coinbaseTime,
 		}}
 
-		cmds = append(cmds, &book.OrderBookMutationCommand{
-			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
-			Mutations: muts,
+		cmds = append(cmds, CoinbaseOrderBookCommand{
+			Command: &book.OrderBookMutationCommand{
+				ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+				Mutations: muts,
+			},
+			Sequence: coinbaseSequenceNumber,
 		})
 		break
 	case MESSAGE_ERROR:

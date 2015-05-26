@@ -70,17 +70,18 @@ func main() {
 			}
 
 			for _, cmd := range cmds {
-				err = cmd.Apply(orderBook)
+				err = cmd.Command.Apply(orderBook)
 				if err != nil {
 					log.Printf("Failed to apply order book command: %s", err.Error())
 				}
 			}
 
-			priceLevels := orderBook.GetPriceLevels()
-			centsInPlay := book.CalculateTotalCentsInPlayInMemory(orderBook, time.Now())
 			openOrders := book.CalculateNumberOfOpenOrdersInMemory(orderBook, time.Now())
+			bid, median, ask, spread := book.CalculateBidMedianAskSpreadInMemory(orderBook, time.Now())
 
-			log.Printf("There are %d open orders at %d price levels and %d dollars in play", openOrders, len(priceLevels), centsInPlay/int64(100*coinbase.SATOSHI))
+			log.Printf("There are %d open orders. Bid: %d\tMed: %d\tAsk: %d\tSpread: %d", openOrders, bid, median, ask, spread)
+
+			orderBook.Vacuum()
 		}
 	}
 

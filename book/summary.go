@@ -32,3 +32,28 @@ func CalculateNumberOfOpenOrdersInMemory(book *InMemoryOrderBook, t time.Time) i
 
 	return openOrders
 }
+
+func CalculateBidMedianAskSpreadInMemory(book *InMemoryOrderBook, t time.Time) (bid, median, ask, spread int64) {
+	bid = -1
+	ask = -1
+
+	for orderId, _ := range book.Book {
+		order, _ := book.GetOrderVersion(orderId, t)
+		if order.State == STATE_OPEN {
+			if order.Side == SIDE_BUY {
+				if order.Price > bid {
+					bid = order.Price
+				}
+			} else if order.Side == SIDE_SELL {
+				if order.Price < ask || ask == -1 {
+					ask = order.Price
+				}
+			}
+		}
+	}
+
+	median = bid + ((ask - bid) / 2)
+	spread = (ask - bid)
+
+	return bid, median, ask, spread
+}
