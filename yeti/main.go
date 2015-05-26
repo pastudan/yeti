@@ -4,13 +4,9 @@ import (
 	"bitbucket.org/jacobgreenleaf/yeti/book"
 	"bitbucket.org/jacobgreenleaf/yeti/coinbase"
 	//"container/list"
-	"encoding/json"
 	"time"
 	//"github.com/cactus/go-statsd-client/statsd"
-	"github.com/gorilla/websocket"
-	"io"
 	"log"
-	"net/http"
 )
 
 func main() {
@@ -18,12 +14,7 @@ func main() {
 
 	log.Printf("Connecting to Coinbase Exchange real-time API...")
 
-	coinbase_url_raw := "wss://ws-feed.exchange.coinbase.com"
-	coinbase_headers := http.Header{}
-	coinbase_headers.Set("Origin", "http://www.jacobgreenleaf.com")
-	coinbase_headers.Set("User-Agent", "Yeti <jacob@jacobgreenleaf.com>")
-	ws_dialer := websocket.Dialer{}
-	ws, _, err := ws_dialer.Dial(coinbase_url_raw, coinbase_headers)
+	feed, err := coinbase.ConnectRealtimeFeed(1000)
 
 	if err != nil {
 		log.Fatalf("Error upgrading coinbase exchange feed connection to WebSocket: %s", err.Error())
@@ -31,44 +22,19 @@ func main() {
 
 	log.Printf("Connected. Subscribing to BTC-USD...")
 
-	ws.WriteMessage(websocket.TextMessage, []byte(`
-		{
-			"type": "subscribe",
-			"product_id": "BTC-USD"
-		}
-	`))
+	feed.Subscribe("BTC-USD")
 
 	log.Printf("Synchronizing order book...")
 
 	orderBook := book.NewInMemoryOrderBook()
 
+	var cmds []coinbase.CoinbaseOrderBookCommand = nil
+
+	go feed.ReadForever()
+
 	for {
-		var reader io.Reader
-		_, reader, err := ws.NextReader()
-
-		if err != nil {
-			log.Printf("Error getting next reader from websocket: %s", err.Error())
-			continue
-		}
-
-		decoder := json.NewDecoder(reader)
-
-		for {
-			var rawOrder interface{}
-			decoder.Decode(&rawOrder)
-
-			if rawOrder == nil {
-				break
-			}
-
-			rawBytes, _ := json.Marshal(rawOrder)
-
-			cmds := coinbase.Decode(rawBytes)
-
-			if cmds == nil || len(cmds) == 0 {
-				break
-			}
-
+		select {
+		case cmds = <-feed.Feed:
 			for _, cmd := range cmds {
 				err = cmd.Command.Apply(orderBook)
 				if err != nil {

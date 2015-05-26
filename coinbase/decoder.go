@@ -6,7 +6,7 @@ import "strconv"
 import "log"
 import "time"
 
-var (
+const (
 	MESSAGE_OPEN     = "open"
 	MESSAGE_RECEIVED = "received"
 	MESSAGE_MATCH    = "match"
