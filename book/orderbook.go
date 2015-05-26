@@ -85,10 +85,6 @@ func (m *OrderMatchMutation) String() string {
 func (m *OrderMatchMutation) Apply(s *StatefulOrder) (*StatefulOrder, error) {
 	new_order := *s // copy
 
-	if s.State != STATE_OPEN {
-		return &new_order, nil
-	}
-
 	if s.Size-m.Size < 0 {
 		return nil, errOrderSizeMutationTooLarge
 	}
