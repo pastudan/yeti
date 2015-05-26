@@ -55,7 +55,7 @@ func (feed *OrderBookCommandFeed) ReadForever() {
 
 			rawBytes, _ := json.Marshal(rawOrder)
 
-			cmds := Decode(rawBytes)
+			cmds := DecodeRealtimeEvent(rawBytes)
 
 			if cmds != nil && len(cmds) > 0 {
 				feed.Feed <- cmds

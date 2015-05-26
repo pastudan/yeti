@@ -5,7 +5,7 @@ import "testing"
 import "bitbucket.org/jacobgreenleaf/yeti/book"
 
 func TestDecodingReceiveOrders(t *testing.T) {
-	cmds := Decode([]byte(`
+	cmds := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "received",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -43,7 +43,7 @@ func TestDecodingReceiveOrders(t *testing.T) {
 }
 
 func TestDecodingOpenOrders(t *testing.T) {
-	cmds := Decode([]byte(`
+	cmds := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "open",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -110,7 +110,7 @@ func TestDecodingOpenOrders(t *testing.T) {
 }
 
 func TestDecodingDoneFilledOrders(t *testing.T) {
-	cmds := Decode([]byte(`
+	cmds := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "done",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -177,7 +177,7 @@ func TestDecodingDoneFilledOrders(t *testing.T) {
 }
 
 func TestDecodingDoneCancelledOrders(t *testing.T) {
-	cmds := Decode([]byte(`
+	cmds := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "done",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -244,7 +244,7 @@ func TestDecodingDoneCancelledOrders(t *testing.T) {
 }
 
 func TestDecodingMatchOrders(t *testing.T) {
-	cmds := Decode([]byte(`
+	cmds := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "match",
 			"trade_id": 10,
@@ -332,7 +332,7 @@ func TestDecodingMatchOrders(t *testing.T) {
 }
 
 func TestDecodingChangeOrders(t *testing.T) {
-	cmds := Decode([]byte(`
+	cmds := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "change",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -379,7 +379,7 @@ func TestDecodingChangeOrders(t *testing.T) {
 }
 
 func TestDecodingError(t *testing.T) {
-	cmds := Decode([]byte(`
+	cmds := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "error",
 			"message": "error message"

@@ -5,6 +5,7 @@ import "bitbucket.org/jacobgreenleaf/yeti/book"
 import "strconv"
 import "log"
 import "time"
+import "errors"
 
 const (
 	MESSAGE_OPEN     = "open"
@@ -18,12 +19,16 @@ const (
 	SATOSHI          = 100000000
 )
 
-type CoinbaseOrderBookCommand struct {
-	Command  book.OrderBookCommand
+var (
+	errStaleCommand = errors.New("Order sequence is older than the book sequence.")
+)
+
+type CoinbaseOrderBook struct {
+	Book     book.OrderBook
 	Sequence int64
 }
 
-func Decode(rawMsg []byte) []CoinbaseOrderBookCommand {
+func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 	var coinbaseEvent map[string]interface{}
 
 	err := json.Unmarshal(rawMsg, &coinbaseEvent)
