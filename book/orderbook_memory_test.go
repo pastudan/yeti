@@ -143,7 +143,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 	}
 
 	match := &OrderMatchMutation{
-		TradeID:  "a",
+		TradeID:  0,
 		Size:     15,
 		WasMaker: true,
 		Time:     time.Unix(2, 0),
@@ -164,7 +164,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 	}
 
 	match = &OrderMatchMutation{
-		TradeID:  "b",
+		TradeID:  1,
 		Size:     5,
 		WasMaker: true,
 		Time:     time.Unix(3, 0),
@@ -185,7 +185,7 @@ func TestMutatingSingleOrder(t *testing.T) {
 	}
 
 	match = &OrderMatchMutation{
-		TradeID:  "c",
+		TradeID:  2,
 		Size:     1,
 		WasMaker: true,
 		Time:     time.Unix(4, 0),

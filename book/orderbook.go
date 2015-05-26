@@ -71,7 +71,7 @@ func (m *OrderSizeMutation) GetTime() time.Time {
 }
 
 type OrderMatchMutation struct {
-	TradeID  string
+	TradeID  int64
 	Size     int64
 	WasMaker bool
 	MakerID  OrderID

@@ -33,7 +33,7 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 	coinbaseType, _ := coinbaseEvent["type"].(string)
 
 	if "error" == coinbaseType {
-		log.Fatalf("Received coinbase error: %s", coinbaseEvent["message"].(string))
+		log.Printf("Received coinbase error: %s", coinbaseEvent["message"].(string))
 		return nil
 	}
 
@@ -104,7 +104,7 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 
 		coinbaseSize, err := strconv.ParseFloat(coinbaseEvent["remaining_size"].(string), 64)
 		if err != nil {
-			log.Fatalf("Failed to parse float size: %s", coinbaseEvent["size"].(string))
+			log.Fatalf("Failed to parse float size: %s", coinbaseEvent["remaining_size"].(string))
 			return nil
 		}
 		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
@@ -133,24 +133,64 @@ func Decode(rawMsg []byte) []book.OrderBookCommand {
 		})
 		break
 	case MESSAGE_MATCH:
-		maker_id := coinbaseEvent["maker_order_id"].(string)
-		taker_id := coinbaseEvent["taker_order_id"].(string)
+		maker_id := book.OrderID(coinbaseEvent["maker_order_id"].(string))
+		taker_id := book.OrderID(coinbaseEvent["taker_order_id"].(string))
+
+		coinbaseSize, err := strconv.ParseFloat(coinbaseEvent["size"].(string), 64)
+		if err != nil {
+			log.Fatalf("Failed to parse float size: %s", coinbaseEvent["size"].(string))
+			return nil
+		}
+		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
+		tradeId := int64(coinbaseEvent["trade_id"].(float64))
 
 		taker_muts := []book.OrderMutation{&book.OrderMatchMutation{
-			TradeID  string
-			Size     int64
-			WasMaker bool
-			MakerID  OrderID
-			Time     time.Time
+			TradeID:  tradeId,
+			Size:     coinbaseSizeSatoshi,
+			WasMaker: false,
+			MakerID:  maker_id,
+			Time:     coinbaseTime,
 		}}
 
-		cmd_taker := &bok.OrderBookMutationCommand{
-			ID:        book.OrderID(taker_id),
+		cmd_taker := &book.OrderBookMutationCommand{
+			ID:        taker_id,
 			Mutations: taker_muts,
 		}
 
+		cmds = append(cmds, cmd_taker)
+
+		maker_muts := []book.OrderMutation{&book.OrderMatchMutation{
+			TradeID:  tradeId,
+			Size:     coinbaseSizeSatoshi,
+			WasMaker: true,
+			Time:     coinbaseTime,
+		}}
+
+		cmd_maker := &book.OrderBookMutationCommand{
+			ID:        maker_id,
+			Mutations: maker_muts,
+		}
+
+		cmds = append(cmds, cmd_maker)
+
 		break
 	case MESSAGE_CHANGE:
+		coinbaseSize, err := strconv.ParseFloat(coinbaseEvent["new_size"].(string), 64)
+		if err != nil {
+			log.Fatalf("Failed to parse float size: %s", coinbaseEvent["new_size"].(string))
+			return nil
+		}
+		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
+
+		muts := []book.OrderMutation{&book.OrderSizeMutation{
+			NewSize: coinbaseSizeSatoshi,
+			Time:    coinbaseTime,
+		}}
+
+		cmds = append(cmds, &book.OrderBookMutationCommand{
+			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+			Mutations: muts,
+		})
 		break
 	case MESSAGE_ERROR:
 		break

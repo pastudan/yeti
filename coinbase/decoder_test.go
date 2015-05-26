@@ -305,8 +305,8 @@ func TestDecodingMatchOrders(t *testing.T) {
 
 	maker_mutation := maker_mutations[0].(*book.OrderMatchMutation)
 
-	if maker_mutation.Size != 523512 {
-		t.Fatalf("Expected size to be 523512 satoshis, instead %d", maker_mutation.Size)
+	if maker_mutation.Size != 523512000 {
+		t.Fatalf("Expected size to be 523512000 satoshis, instead %d", maker_mutation.Size)
 	}
 	if !maker_mutation.Time.Equal(dt) {
 		t.Fatalf("Expected size mutation to be at %s instead %s", dt, maker_mutation.Time)
@@ -317,8 +317,8 @@ func TestDecodingMatchOrders(t *testing.T) {
 
 	taker_mutation := taker_mutations[0].(*book.OrderMatchMutation)
 
-	if taker_mutation.Size != 523512 {
-		t.Fatalf("Expected size to be 523512 satoshis, instead %d", taker_mutation.Size)
+	if taker_mutation.Size != 523512000 {
+		t.Fatalf("Expected size to be 523512000 satoshis, instead %d", taker_mutation.Size)
 	}
 	if !taker_mutation.Time.Equal(dt) {
 		t.Fatalf("Expected size mutation to be at %s instead %s", dt, taker_mutation.Time)
@@ -370,8 +370,8 @@ func TestDecodingChangeOrders(t *testing.T) {
 
 	mutation := mutations[0].(*book.OrderSizeMutation)
 
-	if mutation.NewSize != 523512 {
-		t.Fatalf("Expected size to be 523512 satoshis, instead %d", mutation.NewSize)
+	if mutation.NewSize != 523512000 {
+		t.Fatalf("Expected size to be 523512000 satoshis, instead %d", mutation.NewSize)
 	}
 	if !mutation.Time.Equal(dt) {
 		t.Fatalf("Expected size mutation to be at %s instead %s", dt, mutation.Time)
