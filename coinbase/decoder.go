@@ -23,8 +23,8 @@ var (
 	errStaleCommand = errors.New("Order sequence is older than the book sequence.")
 )
 
-type CoinbaseOrderBook struct {
-	Book     book.OrderBook
+type CoinbaseOrderBookCommand struct {
+	Command  book.OrderBookCommand
 	Sequence int64
 }
 
