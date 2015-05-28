@@ -6,6 +6,8 @@ import "strconv"
 import "log"
 import "time"
 import "errors"
+import "bytes"
+import "fmt"
 
 const (
 	MESSAGE_OPEN     = "open"
@@ -40,8 +42,9 @@ func (b *CoinbaseOrderBookCommandBatch) Apply(book book.OrderBook) error {
 
 func DecodeRealtimeEvent(rawMsg []byte) *CoinbaseOrderBookCommandBatch {
 	var coinbaseEvent map[string]interface{}
-
-	err := json.Unmarshal(rawMsg, &coinbaseEvent)
+	decoder := json.NewDecoder(bytes.NewReader(rawMsg))
+	decoder.UseNumber()
+	err := decoder.Decode(&coinbaseEvent)
 
 	if err != nil {
 		log.Fatalf("Error decoding coinbase JSON: %s", err.Error())
@@ -64,11 +67,16 @@ func DecodeRealtimeEvent(rawMsg []byte) *CoinbaseOrderBookCommandBatch {
 
 	coinbaseSide := coinbaseEvent["side"].(string)
 	coinbasePrice, err := strconv.ParseFloat(coinbaseEvent["price"].(string), 64)
-	coinbasePriceCents := int64(coinbasePrice * 100)
-	coinbaseSequenceNumber := int64(coinbaseEvent["sequence"].(float64))
 
 	if err != nil {
-		log.Fatalf("Failed to parse float price %s", coinbaseEvent["price"].(string))
+		log.Fatalf("Failed to parse float price %s: %s", coinbaseEvent["price"].(string), err.Error())
+		return nil
+	}
+
+	coinbasePriceCents := int64(coinbasePrice * 100)
+	coinbaseSequenceNumber, err := coinbaseEvent["sequence"].(json.Number).Int64()
+	if err != nil {
+		log.Fatalf("Failed to parse sequence number %s: %s", coinbaseEvent["sequence"].(json.Number), err.Error())
 		return nil
 	}
 
@@ -163,7 +171,11 @@ func DecodeRealtimeEvent(rawMsg []byte) *CoinbaseOrderBookCommandBatch {
 			return nil
 		}
 		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
-		tradeId := int64(coinbaseEvent["trade_id"].(float64))
+		tradeId, err := coinbaseEvent["trade_id"].(json.Number).Int64()
+		if err != nil {
+			log.Fatalf("Failed to parse trade id %s: %s", coinbaseEvent["trade_id"].(json.Number), err.Error())
+			return nil
+		}
 
 		takerMuts := []book.OrderMutation{&book.OrderMatchMutation{
 			TradeID:  tradeId,
@@ -221,4 +233,72 @@ func DecodeRealtimeEvent(rawMsg []byte) *CoinbaseOrderBookCommandBatch {
 		Commands: cmds,
 		Sequence: coinbaseSequenceNumber,
 	}
+}
+
+func DecodeRESTOrderBook(rawMsg []byte) (coinbaseSequenceNumber int64, batch *CoinbaseOrderBookCommandBatch, err error) {
+	var msg map[string]interface{}
+
+	decoder := json.NewDecoder(bytes.NewReader(rawMsg))
+	decoder.UseNumber()
+
+	err = decoder.Decode(&msg)
+
+	coinbaseSequenceNumber, err = msg["sequence"].(json.Number).Int64()
+	if err != nil {
+		return 0, nil, fmt.Errorf("Error parsing sequence number: %s", err.Error())
+	}
+
+	bids := msg["bids"].([]interface{})
+	asks := msg["asks"].([]interface{})
+
+	decodeCoinbaseOrder := func(side string, coinbaseOrder []interface{}) (*book.OrderBookPlacementCommand, error) {
+		priceDollars, err := strconv.ParseFloat(coinbaseOrder[0].(string), 64)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing order price %s: %s", coinbaseOrder[0].(string), err.Error())
+		}
+		priceCents := int64(priceDollars * 100)
+		sizeBitcoins, err := strconv.ParseFloat(coinbaseOrder[1].(string), 64)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing order size %s: %s", coinbaseOrder[1].(string), err.Error())
+		}
+		sizeSatoshi := int64(sizeBitcoins * SATOSHI)
+		orderId := coinbaseOrder[2].(string)
+		order := book.Order{
+			ID:    book.OrderID(orderId),
+			Side:  side,
+			Price: priceCents,
+		}
+		cmd := &book.OrderBookPlacementCommand{
+			Size:  sizeSatoshi,
+			Order: order,
+			// Time intentionally left zeroed since Coinbase doesn't tell us when it was placed
+		}
+		return cmd, nil
+	}
+
+	cmds := make([]book.OrderBookCommand, 0, len(bids)+len(asks))
+
+	for _, bid := range bids {
+		orderCmd, err := decodeCoinbaseOrder(book.SIDE_BUY, bid.([]interface{}))
+		if err == nil {
+			cmds = append(cmds, orderCmd)
+		} else {
+			return 0, nil, err
+		}
+	}
+	for _, ask := range asks {
+		orderCmd, err := decodeCoinbaseOrder(book.SIDE_SELL, ask.([]interface{}))
+		if err == nil {
+			cmds = append(cmds, orderCmd)
+		} else {
+			return 0, nil, err
+		}
+	}
+
+	batch = &CoinbaseOrderBookCommandBatch{
+		Commands: cmds,
+		Sequence: coinbaseSequenceNumber,
+	}
+
+	return coinbaseSequenceNumber, batch, nil
 }

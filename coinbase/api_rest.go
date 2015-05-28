@@ -1,3 +1,5 @@
 package coinbase
 
-const ()
+const (
+	COINBASE_REST_URL = "https://api.exchange.coinbase.com"
+)
