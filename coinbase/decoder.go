@@ -23,12 +23,22 @@ var (
 	errStaleCommand = errors.New("Order sequence is older than the book sequence.")
 )
 
-type CoinbaseOrderBookCommand struct {
-	Command  book.OrderBookCommand
+type CoinbaseOrderBookCommandBatch struct {
+	Commands []book.OrderBookCommand
 	Sequence int64
 }
 
-func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
+func (b *CoinbaseOrderBookCommandBatch) Apply(book book.OrderBook) error {
+	for _, cmd := range b.Commands {
+		if err := cmd.Apply(book); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func DecodeRealtimeEvent(rawMsg []byte) *CoinbaseOrderBookCommandBatch {
 	var coinbaseEvent map[string]interface{}
 
 	err := json.Unmarshal(rawMsg, &coinbaseEvent)
@@ -38,7 +48,7 @@ func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 		return nil
 	}
 
-	cmds := make([]CoinbaseOrderBookCommand, 0)
+	cmds := make([]book.OrderBookCommand, 0)
 
 	coinbaseType, _ := coinbaseEvent["type"].(string)
 
@@ -74,17 +84,14 @@ func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 
 		coinbaseSizeSatoshi := int64(coinbaseSize * float64(SATOSHI))
 
-		cmds = append(cmds, CoinbaseOrderBookCommand{
-			Command: &book.OrderBookPlacementCommand{
-				Order: book.Order{
-					ID:    book.OrderID(coinbaseEvent["order_id"].(string)),
-					Price: coinbasePriceCents,
-					Side:  coinbaseSide,
-				},
-				Size: coinbaseSizeSatoshi,
-				Time: coinbaseTime,
+		cmds = append(cmds, &book.OrderBookPlacementCommand{
+			Order: book.Order{
+				ID:    book.OrderID(coinbaseEvent["order_id"].(string)),
+				Price: coinbasePriceCents,
+				Side:  coinbaseSide,
 			},
-			Sequence: coinbaseSequenceNumber,
+			Size: coinbaseSizeSatoshi,
+			Time: coinbaseTime,
 		})
 		break
 	case MESSAGE_OPEN:
@@ -108,12 +115,9 @@ func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 			Time:  coinbaseTime,
 		})
 
-		cmds = append(cmds, CoinbaseOrderBookCommand{
-			Command: &book.OrderBookMutationCommand{
-				ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
-				Mutations: muts,
-			},
-			Sequence: coinbaseSequenceNumber,
+		cmds = append(cmds, &book.OrderBookMutationCommand{
+			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+			Mutations: muts,
 		})
 		break
 	case MESSAGE_DONE:
@@ -144,12 +148,9 @@ func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 			Time:  coinbaseTime,
 		})
 
-		cmds = append(cmds, CoinbaseOrderBookCommand{
-			Command: &book.OrderBookMutationCommand{
-				ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
-				Mutations: muts,
-			},
-			Sequence: coinbaseSequenceNumber,
+		cmds = append(cmds, &book.OrderBookMutationCommand{
+			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+			Mutations: muts,
 		})
 		break
 	case MESSAGE_MATCH:
@@ -177,10 +178,7 @@ func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 			Mutations: takerMuts,
 		}
 
-		cmds = append(cmds, CoinbaseOrderBookCommand{
-			Command:  cmdTaker,
-			Sequence: coinbaseSequenceNumber,
-		})
+		cmds = append(cmds, cmdTaker)
 
 		makerMuts := []book.OrderMutation{&book.OrderMatchMutation{
 			TradeID:  tradeId,
@@ -194,10 +192,7 @@ func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 			Mutations: makerMuts,
 		}
 
-		cmds = append(cmds, CoinbaseOrderBookCommand{
-			Command:  cmdMaker,
-			Sequence: coinbaseSequenceNumber,
-		})
+		cmds = append(cmds, cmdMaker)
 
 		break
 	case MESSAGE_CHANGE:
@@ -213,17 +208,17 @@ func DecodeRealtimeEvent(rawMsg []byte) []CoinbaseOrderBookCommand {
 			Time:    coinbaseTime,
 		}}
 
-		cmds = append(cmds, CoinbaseOrderBookCommand{
-			Command: &book.OrderBookMutationCommand{
-				ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
-				Mutations: muts,
-			},
-			Sequence: coinbaseSequenceNumber,
+		cmds = append(cmds, &book.OrderBookMutationCommand{
+			ID:        book.OrderID(coinbaseEvent["order_id"].(string)),
+			Mutations: muts,
 		})
 		break
 	case MESSAGE_ERROR:
 		break
 	}
 
-	return cmds
+	return &CoinbaseOrderBookCommandBatch{
+		Commands: cmds,
+		Sequence: coinbaseSequenceNumber,
+	}
 }

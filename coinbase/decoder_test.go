@@ -5,7 +5,7 @@ import "testing"
 import "github.com/jacobgreenleaf/yeti/book"
 
 func TestDecodingReceiveOrders(t *testing.T) {
-	cmds := DecodeRealtimeEvent([]byte(`
+	batch := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "received",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -18,11 +18,15 @@ func TestDecodingReceiveOrders(t *testing.T) {
 		}
 	`))
 
-	if cmds == nil || len(cmds) != 1 {
+	if batch.Commands == nil || len(batch.Commands) != 1 {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].Command.(*book.OrderBookPlacementCommand)
+	if batch.Sequence != 10 {
+		t.Fatalf("Epected sequence number to be 10, instead %d", batch.Sequence)
+	}
+
+	cmd := batch.Commands[0].(*book.OrderBookPlacementCommand)
 
 	if cmd.Order.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.Order.ID)
@@ -43,7 +47,7 @@ func TestDecodingReceiveOrders(t *testing.T) {
 }
 
 func TestDecodingOpenOrders(t *testing.T) {
-	cmds := DecodeRealtimeEvent([]byte(`
+	batch := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "open",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -56,11 +60,15 @@ func TestDecodingOpenOrders(t *testing.T) {
 		}
 	`))
 
-	if cmds == nil || len(cmds) != 1 {
+	if batch.Commands == nil || len(batch.Commands) != 1 {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
+	if batch.Sequence != 10 {
+		t.Fatalf("Epected sequence number to be 10, instead %d", batch.Sequence)
+	}
+
+	cmd := batch.Commands[0].(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.ID)
@@ -110,7 +118,7 @@ func TestDecodingOpenOrders(t *testing.T) {
 }
 
 func TestDecodingDoneFilledOrders(t *testing.T) {
-	cmds := DecodeRealtimeEvent([]byte(`
+	batch := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "done",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -124,11 +132,15 @@ func TestDecodingDoneFilledOrders(t *testing.T) {
 		}
 	`))
 
-	if cmds == nil || len(cmds) != 1 {
+	if batch.Commands == nil || len(batch.Commands) != 1 {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
+	if batch.Sequence != 10 {
+		t.Fatalf("Epected sequence number to be 10, instead %d", batch.Sequence)
+	}
+
+	cmd := batch.Commands[0].(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.ID)
@@ -177,7 +189,7 @@ func TestDecodingDoneFilledOrders(t *testing.T) {
 }
 
 func TestDecodingDoneCancelledOrders(t *testing.T) {
-	cmds := DecodeRealtimeEvent([]byte(`
+	batch := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "done",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -191,11 +203,15 @@ func TestDecodingDoneCancelledOrders(t *testing.T) {
 		}
 	`))
 
-	if cmds == nil || len(cmds) != 1 {
+	if batch.Commands == nil || len(batch.Commands) != 1 {
 		t.Fatal("Expected an order book command, but got nil")
 	}
 
-	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
+	if batch.Sequence != 10 {
+		t.Fatalf("Epected sequence number to be 10, instead %d", batch.Sequence)
+	}
+
+	cmd := batch.Commands[0].(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "d50ec984-77a8-460a-b958-66f114b0de9b" {
 		t.Fatalf("Expected order ID to be d50ec984-77a8-460a-b958-66f114b0de9b, instead %s", cmd.ID)
@@ -244,7 +260,7 @@ func TestDecodingDoneCancelledOrders(t *testing.T) {
 }
 
 func TestDecodingMatchOrders(t *testing.T) {
-	cmds := DecodeRealtimeEvent([]byte(`
+	batch := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "match",
 			"trade_id": 10,
@@ -259,17 +275,21 @@ func TestDecodingMatchOrders(t *testing.T) {
 		}
 	`))
 
-	if cmds == nil {
+	if batch.Commands == nil {
 		t.Fatal("Expected two order book commands, but got nil")
 	}
 
-	if len(cmds) != 2 {
-		t.Fatalf("Expected two order book commands, but got %d", len(cmds))
+	if len(batch.Commands) != 2 {
+		t.Fatalf("Expected two order book commands, but got %d", len(batch.Commands))
+	}
+
+	if batch.Sequence != 50 {
+		t.Fatalf("Epected sequence number to be 50, instead %d", batch.Sequence)
 	}
 
 	var cmdMaker, cmdTaker *book.OrderBookMutationCommand = nil, nil
-	cmdOne := cmds[0].Command.(*book.OrderBookMutationCommand)
-	cmdTwo := cmds[1].Command.(*book.OrderBookMutationCommand)
+	cmdOne := batch.Commands[0].(*book.OrderBookMutationCommand)
+	cmdTwo := batch.Commands[1].(*book.OrderBookMutationCommand)
 
 	if cmdOne.ID == "ac928c66-ca53-498f-9c13-a110027a60e8" {
 		cmdMaker = cmdOne
@@ -332,7 +352,7 @@ func TestDecodingMatchOrders(t *testing.T) {
 }
 
 func TestDecodingChangeOrders(t *testing.T) {
-	cmds := DecodeRealtimeEvent([]byte(`
+	batch := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "change",
 			"time": "2014-11-07T08:19:27.028459Z",
@@ -346,15 +366,19 @@ func TestDecodingChangeOrders(t *testing.T) {
 		}
 	`))
 
-	if cmds == nil {
+	if batch.Commands == nil {
 		t.Fatal("Expected order book command, but got nil")
 	}
 
-	if len(cmds) != 1 {
-		t.Fatalf("Expected one order book command, but got %d", len(cmds))
+	if len(batch.Commands) != 1 {
+		t.Fatalf("Expected one order book command, but got %d", len(batch.Commands))
 	}
 
-	cmd := cmds[0].Command.(*book.OrderBookMutationCommand)
+	if batch.Sequence != 80 {
+		t.Fatalf("Epected sequence number to be 80, instead %d", batch.Sequence)
+	}
+
+	cmd := batch.Commands[0].(*book.OrderBookMutationCommand)
 
 	if cmd.ID != "ac928c66-ca53-498f-9c13-a110027a60e8" {
 		t.Fatalf("Expected order id to be ac928c66-ca53-498f-9c13-a110027a60e8, instead %s", cmd.ID)
@@ -379,14 +403,14 @@ func TestDecodingChangeOrders(t *testing.T) {
 }
 
 func TestDecodingError(t *testing.T) {
-	cmds := DecodeRealtimeEvent([]byte(`
+	batch := DecodeRealtimeEvent([]byte(`
 		{
 			"type": "error",
 			"message": "error message"
 		}
 	`))
 
-	if cmds != nil {
+	if batch != nil {
 		t.Fatal("Expected error messages to return no commands")
 	}
 }

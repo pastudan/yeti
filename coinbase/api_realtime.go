@@ -10,7 +10,7 @@ const (
 )
 
 type OrderBookCommandFeed struct {
-	Feed   chan []CoinbaseOrderBookCommand
+	Feed   chan *CoinbaseOrderBookCommandBatch
 	socket *websocket.Conn
 }
 
@@ -24,7 +24,7 @@ func ConnectRealtimeFeed(bufLen int) (*OrderBookCommandFeed, error) {
 	if err != nil {
 		return nil, err
 	} else {
-		feed := make(chan []CoinbaseOrderBookCommand, bufLen)
+		feed := make(chan *CoinbaseOrderBookCommandBatch, bufLen)
 		cmdFeed := &OrderBookCommandFeed{
 			Feed:   feed,
 			socket: socket,
@@ -55,10 +55,10 @@ func (feed *OrderBookCommandFeed) ReadForever() {
 
 			rawBytes, _ := json.Marshal(rawOrder)
 
-			cmds := DecodeRealtimeEvent(rawBytes)
+			batch := DecodeRealtimeEvent(rawBytes)
 
-			if cmds != nil && len(cmds) > 0 {
-				feed.Feed <- cmds
+			if batch != nil && len(batch.Commands) > 0 {
+				feed.Feed <- batch
 			}
 		}
 	}

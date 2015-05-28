@@ -28,18 +28,21 @@ func main() {
 
 	orderBook := book.NewInMemoryOrderBook()
 
-	var cmds []coinbase.CoinbaseOrderBookCommand = nil
+	var batch *coinbase.CoinbaseOrderBookCommandBatch = nil
 
 	go feed.ReadForever()
 
 	for {
 		select {
-		case cmds = <-feed.Feed:
-			for _, cmd := range cmds {
-				err = cmd.Command.Apply(orderBook)
-				if err != nil {
-					log.Printf("Failed to apply order book command: %s", err.Error())
-				}
+		case batch = <-feed.Feed:
+			if batch == nil {
+				continue
+			}
+
+			err = batch.Apply(orderBook)
+
+			if err != nil {
+				log.Printf("Failed to apply order book command: %s", err.Error())
 			}
 
 			openOrders := book.CalculateNumberOfOpenOrdersInMemory(orderBook, time.Now())
