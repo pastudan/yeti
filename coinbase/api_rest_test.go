@@ -35,4 +35,8 @@ func TestDecodingRESTOrderBook(t *testing.T) {
 	if len(batch.Commands) != 5 {
 		t.Fatalf("Expected number of commands to be 5, instead %d", len(batch.Commands))
 	}
+
+	if batch.Sequence != int(3) {
+		t.Fatalf("Expected sequence number to be 3, instead %d", batch.Sequence)
+	}
 }
